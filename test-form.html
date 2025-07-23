@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Form - N8N Autofiller</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .test-info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Form for N8N Autofiller</h1>
+    
+    <div class="test-info">
+        <strong>Test Steps:</strong>
+        <ol>
+            <li>Click the N8N extension icon</li>
+            <li>Enter any URL and click "Process URL"</li>
+            <li>Come back to this page</li>
+            <li>Click "Autofill Form" in the extension</li>
+        </ol>
+    </div>
+
+    <form>
+        <div class="form-group">
+            <label>Business Name:</label>
+            <input type="text" name="business_name" id="business_name">
+        </div>
+
+        <div class="form-group">
+            <label>DBA Name:</label>
+            <input type="text" name="dba_name" id="dba_name">
+        </div>
+
+        <div class="form-group">
+            <label>First Name:</label>
+            <input type="text" name="first_name" id="first_name">
+        </div>
+
+        <div class="form-group">
+            <label>Last Name:</label>
+            <input type="text" name="last_name" id="last_name">
+        </div>
+
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" name="email" id="email">
+        </div>
+
+        <div class="form-group">
+            <label>Phone:</label>
+            <input type="tel" name="phone" id="phone">
+        </div>
+
+        <div class="form-group">
+            <label>Website:</label>
+            <input type="url" name="website" id="website">
+        </div>
+
+        <div class="form-group">
+            <label>Address:</label>
+            <input type="text" name="address" id="address">
+        </div>
+
+        <div class="form-group">
+            <label>City:</label>
+            <input type="text" name="city" id="city">
+        </div>
+
+        <div class="form-group">
+            <label>State:</label>
+            <input type="text" name="state" id="state">
+        </div>
+
+        <div class="form-group">
+            <label>ZIP:</label>
+            <input type="text" name="zip" id="zip">
+        </div>
+
+        <div class="form-group">
+            <label>Annual Revenue:</label>
+            <input type="number" name="revenue" id="revenue">
+        </div>
+
+        <div class="form-group">
+            <label>Business Description:</label>
+            <textarea name="description" id="description" rows="3"></textarea>
+        </div>
+
+        <button type="submit">Submit (Demo)</button>
+    </form>
+
+    <script>
+        // Prevent form submission
+        document.querySelector('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Form submission prevented. This is just a test form!');
+        });
+        
+        console.log('Test form loaded');
+    </script>
+</body>
+</html> 

@@ -484,30 +484,7 @@ function formatPhoneNumber(phone) {
 
 
 
-// Listen for messages from popup or background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    switch (request.action) {
-        case 'autofill':
-            const filledCount = autofillFormAdvanced(request.data);
-            sendResponse({ success: true, filledFields: filledCount });
-            break;
-            
-        case 'detectForms':
-            detectForms();
-            sendResponse({ success: true });
-            break;
-            
-        case 'highlight':
-            // Highlight all form fields
-            const inputs = document.querySelectorAll('input, textarea, select');
-            inputs.forEach(input => highlightField(input));
-            sendResponse({ success: true, fieldCount: inputs.length });
-            break;
-            
-        default:
-            sendResponse({ success: false, error: 'Unknown action' });
-    }
-});
+// Note: Message listener moved to end of file to avoid duplicates
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
@@ -538,6 +515,39 @@ const observer = new MutationObserver((mutations) => {
 observer.observe(document.body, {
     childList: true,
     subtree: true
+});
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('Content script received message:', request);
+    
+    switch (request.action) {
+        case 'ping':
+            sendResponse({ success: true, message: 'Content script is active' });
+            break;
+            
+        case 'autofill':
+            const filledCount = autofillFormAdvanced(request.data);
+            sendResponse({ success: true, filledFields: filledCount });
+            break;
+            
+        case 'detectForms':
+            detectForms();
+            sendResponse({ success: true });
+            break;
+            
+        case 'highlight':
+            // Highlight all form fields
+            const inputs = document.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => highlightField(input));
+            sendResponse({ success: true, fieldCount: inputs.length });
+            break;
+            
+        default:
+            sendResponse({ success: false, error: 'Unknown action' });
+    }
+    
+    return true; // Keep the message channel open for async response
 });
 
 console.log('N8N Form Autofiller content script loaded'); 

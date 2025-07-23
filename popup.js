@@ -163,19 +163,58 @@ async function autofillForm() {
             return;
         }
 
-        // Inject the content script and autofill
-        await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: autofillFormOnPage,
-            args: [processedData]
-        });
-
-        showStatus('Form autofilled successfully!', 'success');
+        console.log('Attempting to autofill on tab:', tab.url);
         
-        // Optional: Close popup after successful autofill
-        setTimeout(() => {
-            window.close();
-        }, 2000);
+        // Check if it's a special page where content scripts can't run
+        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || 
+            tab.url.startsWith('about:') || tab.url.startsWith('moz-extension://') ||
+            tab.url.startsWith('file://')) {
+            showStatus('Cannot autofill on this type of page. Try a regular website.', 'error');
+            return;
+        }
+
+        let response;
+        try {
+            // First try to send message to existing content script
+            response = await chrome.tabs.sendMessage(tab.id, {
+                action: 'autofill',
+                data: processedData
+            });
+        } catch (connectionError) {
+            console.log('Content script not found, injecting manually...');
+            
+            try {
+                // Inject content script manually if not present
+                await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['content.js']
+                });
+                
+                // Wait a moment for the script to initialize
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Try sending message again
+                response = await chrome.tabs.sendMessage(tab.id, {
+                    action: 'autofill',
+                    data: processedData
+                });
+            } catch (injectionError) {
+                console.error('Failed to inject content script:', injectionError);
+                showStatus('Cannot autofill on this page. Try refreshing the page.', 'error');
+                return;
+            }
+        }
+
+        if (response && response.success) {
+            showStatus(`Form autofilled successfully! Filled ${response.filledFields} fields.`, 'success');
+            
+            // Optional: Close popup after successful autofill
+            setTimeout(() => {
+                window.close();
+            }, 2000);
+        } else {
+            showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
+        }
 
     } catch (error) {
         console.error('Error autofilling form:', error);
@@ -183,327 +222,7 @@ async function autofillForm() {
     }
 }
 
-// This function will be injected into the page
-function autofillFormOnPage(data) {
-    console.log('Autofilling form with data:', data);
-    
-    // Flatten and normalize the data structure
-    const flattenedData = flattenData(data);
-    console.log('Flattened data:', flattenedData);
-    
-    let filledFields = 0;
-    
-    // Enhanced field mappings for your specific data format
-    const fieldMappings = {
-        // Business information
-        'Name of Business': ['businessname', 'business_name', 'company_name', 'name', 'business'],
-        'DBA Name': ['dba', 'dba_name', 'doing_business_as', 'trade_name'],
-        'Website URL': ['website', 'url', 'website_url', 'site', 'homepage'],
-        'Business entity type': ['entity_type', 'business_type', 'entity', 'type'],
-        'Is the Business non-profit?': ['nonprofit', 'non_profit', 'non-profit'],
-        'Year the Business was started': ['start_year', 'year_started', 'founded', 'established'],
-        'Description of Business operations': ['description', 'business_description', 'operations'],
-        'Years of management experience in industry': ['experience', 'management_experience', 'years_experience'],
-        'Annual revenue': ['revenue', 'annual_revenue', 'income'],
-        'Total Number of Full-Time Employees': ['full_time_employees', 'fulltime_employees', 'employees'],
-        'Total Number of Part-Time Employees': ['part_time_employees', 'parttime_employees'],
-        'Total Payroll': ['payroll', 'total_payroll'],
-        
-        // Personal information
-        'First Name': ['firstname', 'first_name', 'fname', 'given_name'],
-        'Last Name': ['lastname', 'last_name', 'lname', 'family_name', 'surname'],
-        'Phone Number': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone'],
-        'Email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email'],
-        
-        // Address fields
-        'Street': ['address', 'street', 'address1', 'street_address'],
-        'City': ['city', 'town', 'locality'],
-        'State': ['state', 'province', 'region'],
-        'ZIP': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode'],
-        
-        // Policy dates
-        'Policy Effective Date': ['effective_date', 'start_date', 'policy_start'],
-        'Policy Expiration Date': ['expiration_date', 'end_date', 'policy_end'],
-        
-        // Special fields
-        'Mailing address is same as Primary address?': ['same_address', 'mailing_same', 'address_same']
-    };
-    
-    // Process each field in the flattened data
-    for (const [key, value] of Object.entries(flattenedData)) {
-        if (value === null || value === undefined || value === '') continue;
-        
-        const element = findFormElement(key, value, fieldMappings);
-        if (element && fillFormElement(element, value, key)) {
-            filledFields++;
-        }
-    }
-    
-    console.log(`Autofilled ${filledFields} fields`);
-    
-    // Show a notification on the page
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #4CAF50;
-        color: white;
-        padding: 15px 20px;
-        border-radius: 5px;
-        z-index: 10000;
-        font-family: Arial, sans-serif;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    `;
-    notification.textContent = `✅ Autofilled ${filledFields} fields`;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
-}
-
-// Helper function to flatten nested data structures
-function flattenData(obj, prefix = '') {
-    const flattened = {};
-    
-    for (const [key, value] of Object.entries(obj)) {
-        const newKey = prefix ? `${prefix}.${key}` : key;
-        
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-            // Recursively flatten nested objects
-            Object.assign(flattened, flattenData(value, newKey));
-            
-            // Also add individual nested fields directly
-            Object.assign(flattened, flattenData(value, ''));
-        } else {
-            flattened[newKey] = value;
-            // Also add without prefix for easier matching
-            if (prefix) {
-                flattened[key] = value;
-            }
-        }
-    }
-    
-    return flattened;
-}
-
-// Enhanced function to find form elements
-function findFormElement(key, value, fieldMappings) {
-    let element = null;
-    const keyLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    // 1. Try exact matches first
-    const exactSelectors = [
-        `input[name="${key}"]`,
-        `input[id="${key}"]`,
-        `textarea[name="${key}"]`,
-        `textarea[id="${key}"]`,
-        `select[name="${key}"]`,
-        `select[id="${key}"]`
-    ];
-    
-    for (const selector of exactSelectors) {
-        element = document.querySelector(selector);
-        if (element) return element;
-    }
-    
-    // 2. Try mapped field names
-    const mappedFields = fieldMappings[key] || [];
-    for (const mappedField of mappedFields) {
-        const mappedSelectors = [
-            `input[name="${mappedField}"]`,
-            `input[id="${mappedField}"]`,
-            `input[name*="${mappedField}"]`,
-            `input[id*="${mappedField}"]`,
-            `textarea[name="${mappedField}"]`,
-            `textarea[id="${mappedField}"]`,
-            `select[name="${mappedField}"]`,
-            `select[id="${mappedField}"]`
-        ];
-        
-        for (const selector of mappedSelectors) {
-            element = document.querySelector(selector);
-            if (element) return element;
-        }
-    }
-    
-    // 3. Try fuzzy matching with cleaned key
-    const allInputs = document.querySelectorAll('input, textarea, select');
-    for (const input of allInputs) {
-        const name = (input.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const id = (input.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const placeholder = (input.placeholder || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const label = getFieldLabel(input).toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        if (name.includes(keyLower) || id.includes(keyLower) || 
-            placeholder.includes(keyLower) || label.includes(keyLower) ||
-            keyLower.includes(name) || keyLower.includes(id)) {
-            return input;
-        }
-    }
-    
-    return null;
-}
-
-// Enhanced function to fill form elements
-function fillFormElement(element, value, fieldName) {
-    try {
-        const tagName = element.tagName.toLowerCase();
-        const type = element.type ? element.type.toLowerCase() : '';
-        
-        // Handle different input types based on the field name and value
-        switch (type) {
-            case 'radio':
-                return fillRadioButton(element, value, fieldName);
-            case 'checkbox':
-                return fillCheckbox(element, value, fieldName);
-            case 'date':
-                return fillDateField(element, value);
-            case 'email':
-                if (isValidEmail(value)) {
-                    element.value = value;
-                    return true;
-                }
-                break;
-            case 'url':
-                if (isValidUrl(value)) {
-                    element.value = value;
-                    return true;
-                }
-                break;
-            case 'tel':
-                element.value = formatPhoneNumber(value);
-                return true;
-            case 'number':
-                element.value = value.toString();
-                return true;
-            default:
-                if (tagName === 'select') {
-                    return fillSelectElement(element, value);
-                } else {
-                    element.value = value.toString();
-                    return true;
-                }
-        }
-        
-        // Trigger events to ensure form validation
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-        
-        // Visual feedback
-        element.style.backgroundColor = '#e8f5e8';
-        setTimeout(() => {
-            element.style.backgroundColor = '';
-        }, 2000);
-        
-        return true;
-    } catch (error) {
-        console.error('Error filling element:', error);
-        return false;
-    }
-}
-
-// Helper functions for specific field types
-function fillRadioButton(element, value, fieldName) {
-    const radioGroup = document.querySelectorAll(`input[name="${element.name}"]`);
-    
-    for (const radio of radioGroup) {
-        const radioValue = radio.value.toLowerCase();
-        const valueStr = value.toString().toLowerCase();
-        
-        if (radioValue === valueStr || 
-            (value === true && (radioValue === 'yes' || radioValue === 'true' || radioValue === '1')) ||
-            (value === false && (radioValue === 'no' || radioValue === 'false' || radioValue === '0'))) {
-            radio.checked = true;
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-        }
-    }
-    return false;
-}
-
-function fillCheckbox(element, value, fieldName) {
-    if (value === true || value === 'Yes' || value === 'true' || value === '1') {
-        element.checked = true;
-    } else if (value === false || value === 'No' || value === 'false' || value === '0') {
-        element.checked = false;
-    }
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-}
-
-function fillDateField(element, value) {
-    try {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            element.value = `${year}-${month}-${day}`;
-            return true;
-        }
-    } catch (error) {
-        console.error('Error formatting date:', error);
-    }
-    return false;
-}
-
-function fillSelectElement(element, value) {
-    const options = element.querySelectorAll('option');
-    const valueStr = value.toString().toLowerCase();
-    
-    for (const option of options) {
-        const optionValue = option.value.toLowerCase();
-        const optionText = option.textContent.toLowerCase();
-        
-        if (optionValue === valueStr || optionText === valueStr ||
-            optionValue.includes(valueStr) || optionText.includes(valueStr)) {
-            element.value = option.value;
-            element.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-        }
-    }
-    return false;
-}
-
-function getFieldLabel(element) {
-    // Try to find associated label
-    if (element.id) {
-        const label = document.querySelector(`label[for="${element.id}"]`);
-        if (label) return label.textContent.trim();
-    }
-    
-    // Try to find parent label
-    const parentLabel = element.closest('label');
-    if (parentLabel) return parentLabel.textContent.trim();
-    
-    // Try to find preceding label
-    let prev = element.previousElementSibling;
-    while (prev) {
-        if (prev.tagName.toLowerCase() === 'label') {
-            return prev.textContent.trim();
-        }
-        prev = prev.previousElementSibling;
-    }
-    
-    return '';
-}
-
-function formatPhoneNumber(phone) {
-    const cleaned = phone.toString().replace(/\D/g, '');
-    if (cleaned.length === 10) {
-        return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    } else if (cleaned.length === 11 && cleaned[0] === '1') {
-        return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
-    }
-    return phone.toString();
-}
-
-function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-}
+// Note: Autofill functionality moved to content script for better compatibility
 
 function isValidUrl(string) {
     try {
