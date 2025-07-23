@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "N8N Form Autofiller",
+  "version": "1.0",
+  "description": "Chrome extension that sends URL to n8n workflow and autofills forms with the response",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://somil.app.n8n.cloud/*",
+    "http://localhost/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "N8N Form Autofiller"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+} 

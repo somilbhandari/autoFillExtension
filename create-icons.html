@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Extension Icons</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .icon-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .icon-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        canvas {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+        }
+        .download-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .download-btn:hover {
+            background: #5a67d8;
+        }
+        .instructions {
+            background: #e6fffa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #38b2ac;
+        }
+    </style>
+</head>
+<body>
+    <h1>🤖 N8N Form Autofiller - Icon Generator</h1>
+    
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Right-click on each canvas below</li>
+            <li>Select "Save image as..."</li>
+            <li>Save as: icon16.png, icon48.png, and icon128.png</li>
+            <li>Move the files to the icons/ folder in your extension</li>
+        </ol>
+    </div>
+
+    <div class="icon-container">
+        <div class="icon-wrapper">
+            <h3>16x16 Icon</h3>
+            <canvas id="icon16" width="16" height="16"></canvas>
+            <br>
+            <button class="download-btn" onclick="downloadIcon('icon16', 'icon16.png')">Download 16x16</button>
+        </div>
+
+        <div class="icon-wrapper">
+            <h3>48x48 Icon</h3>
+            <canvas id="icon48" width="48" height="48"></canvas>
+            <br>
+            <button class="download-btn" onclick="downloadIcon('icon48', 'icon48.png')">Download 48x48</button>
+        </div>
+
+        <div class="icon-wrapper">
+            <h3>128x128 Icon</h3>
+            <canvas id="icon128" width="128" height="128"></canvas>
+            <br>
+            <button class="download-btn" onclick="downloadIcon('icon128', 'icon128.png')">Download 128x128</button>
+        </div>
+    </div>
+
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Create gradient background
+            const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            
+            // Draw background circle
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 2, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Scale factors for different sizes
+            const scale = size / 128;
+            
+            // Draw robot head
+            ctx.fillStyle = 'white';
+            ctx.fillRect(45 * scale, 35 * scale, 38 * scale, 30 * scale);
+            
+            // Draw robot eyes
+            ctx.fillStyle = '#667eea';
+            ctx.beginPath();
+            ctx.arc(55 * scale, 45 * scale, 3 * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(73 * scale, 45 * scale, 3 * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw robot mouth
+            ctx.fillRect(58 * scale, 55 * scale, 12 * scale, 2 * scale);
+            
+            // Draw robot body
+            ctx.fillStyle = 'white';
+            ctx.fillRect(50 * scale, 65 * scale, 28 * scale, 35 * scale);
+            
+            // Draw form document (if size is large enough)
+            if (size >= 48) {
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.fillRect(70 * scale, 45 * scale, 20 * scale, 25 * scale);
+                
+                // Draw form lines
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 1 * scale;
+                ctx.beginPath();
+                ctx.moveTo(73 * scale, 50 * scale);
+                ctx.lineTo(87 * scale, 50 * scale);
+                ctx.moveTo(73 * scale, 55 * scale);
+                ctx.lineTo(85 * scale, 55 * scale);
+                ctx.moveTo(73 * scale, 60 * scale);
+                ctx.lineTo(87 * scale, 60 * scale);
+                ctx.stroke();
+            }
+            
+            // Draw control buttons (if size is large enough)
+            if (size >= 48) {
+                ctx.fillStyle = '#667eea';
+                ctx.beginPath();
+                ctx.arc(58 * scale, 80 * scale, 2 * scale, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(70 * scale, 80 * scale, 2 * scale, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Generate all icons when page loads
+        window.onload = function() {
+            createIcon('icon16', 16);
+            createIcon('icon48', 48);
+            createIcon('icon128', 128);
+        };
+    </script>
+</body>
+</html> 

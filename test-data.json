@@ -1,0 +1,27 @@
+{
+  "Name of Business": "Blue Horizon Ventures LLC",
+  "DBA Name": "Horizon Foods",
+  "Website URL": "https://www.horizonfoods.com",
+  "Primary Address": {
+    "Street": "742 Elmwood Drive",
+    "City": "Austin",
+    "State": "TX",
+    "ZIP": "73301"
+  },
+  "Mailing address is same as Primary address?": true,
+  "First Name": "Jessica",
+  "Last Name": "Carpenter",
+  "Phone Number": "+1-512-555-8923",
+  "Email": "jessica.carpenter@horizonfoods.com",
+  "Business entity type": "LLC",
+  "Is the Business non-profit?": false,
+  "Year the Business was started": 2016,
+  "Description of Business operations": "We specialize in manufacturing and distributing organic packaged food products to grocery stores and online retailers.",
+  "Years of management experience in industry": 9,
+  "Annual revenue": 1250000,
+  "Total Number of Full-Time Employees": 18,
+  "Total Number of Part-Time Employees": 5,
+  "Total Payroll": 735000,
+  "Policy Effective Date": "2025-08-01",
+  "Policy Expiration Date": "2026-08-01"
+} 
