@@ -106,7 +106,7 @@ function addFloatingInterface() {
     slidingPanel.innerHTML = `
         <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 20px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h1 style="margin: 0; font-size: 18px; font-weight: 600;">🤖 N8N Form Autofiller</h1>
+                                 <h1 style="margin: 0; font-size: 18px; font-weight: 600;">🤖 IntelliFill - CoverFroce Form Autofiller</h1>
                 <button id="${EXTENSION_ID}-close-btn" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s;">×</button>
             </div>
             
