@@ -482,13 +482,13 @@ async function autofillForm() {
         const filledCount = autofillFormAdvanced(processedData);
         
         if (filledCount > 0) {
-            showStatus(`Form autofilled successfully! Filled ${filledCount} fields.`, 'success');
+            showStatus(`Form autofilled successfully! Filled ${filledCount} fields. Green highlights will remain until you interact with them.`, 'success');
             
             // Optional: Close panel after successful autofill
             setTimeout(() => {
                 const slidingPanel = document.getElementById(`${EXTENSION_ID}-sliding-panel`);
                 closeSlidePanel(slidingPanel);
-            }, 2000);
+            }, 3000);
         } else {
             showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
         }
@@ -637,12 +637,28 @@ function autofillFormAdvanced(data) {
         'natureOfOperations': ['description', 'business_description', 'operations', 'nature_of_business', 'business_type', 'type_of_business'],
         'naics': ['naics_code', 'naics', 'industry_code', 'sic_code'],
         'fein': ['fein', 'ein', 'employer_id', 'tax_id', 'federal_tax_id'],
-        'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income'],
+        'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income', 'annualRevenue', 'annualSales'],
         'yearsOfManagementExperience': ['experience', 'management_experience', 'years_experience', 'management_years','yearsOfExperience'],
         'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year', 'businessYearOfFounding'],
         'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
-        
-        // Contact information - from contacts array
+        'fullTimeEmployees': ['full_time_employees', 'full_time_employees_count', 'numberOfFullTimeEmployees', 'fullTimeEmployees'],
+        'partTimeEmployees': ['part_time_employees', 'part_time_employees_count', 'numberOfPartTimeEmployees', 'partTimeEmployees'],
+        'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate'],
+        'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate'],
+        'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType'],
+        'totalPayroll': ['total_payroll', 'payroll_total', 'payrollTotal', 'totalPayroll', 'totalEmployeePayroll'],
+
+        'totalArea': ['total_area', 'total_square_feet', 'total_square_meters', 'total_square_feet_area', 'total_square_meters_area', 'totalArea'],
+        'areaOccupied': ['area_occupied', 'occupied_area', 'occupied_square_feet', 'occupied_square_meters', 'occupied_square_feet_area', 'occupied_square_meters_area', 'areaOccupied'],
+        'areaOccupiedByOthers': ['area_occupied_by_others', 'occupied_area_by_others', 'occupied_square_feet_by_others', 'occupied_square_meters_by_others', 'occupied_square_feet_area_by_others', 'occupied_square_meters_area_by_others', 'areaOccupiedByOthers'],
+        'totalStories': ['total_stories', 'stories', 'story_count', 'total_story_count', 'totalStories'],
+        'yearBuilt': ['year_built', 'built_year', 'yearBuilt'],
+        'roofUpdateYear': ['roof_update_year', 'roof_update_year', 'roofUpdateYear'],
+        'sprinkleredPercentage': ['sprinklered_percentage', 'sprinkleredPercentage'],
+        'buildingCoverage': ['building_coverage', 'buildingCoverage'],
+        'businessPersonalPropertyCoverage': ['business_personal_property_coverage', 'businessPersonalPropertyCoverage'],
+
+        // Contact information - from contacts arraoy
         'phone': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone', 'business_phone', 'office_phone'],
         'email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email', 'business_email'],
         'fax': ['fax', 'fax_number', 'fax_phone', 'facsimile'],
@@ -673,6 +689,13 @@ function autofillFormAdvanced(data) {
     
     console.log(`Advanced autofill completed. Filled ${filledFields} fields.`);
     showNotification(`✅ Autofilled ${filledFields} fields successfully!`, 'success');
+    
+    // Show instruction about removing highlights
+    if (filledFields > 0) {
+        setTimeout(() => {
+            showNotification(`💡 Green highlights will disappear when you interact with the fields`, 'info');
+        }, 3000);
+    }
     
     return filledFields;
 }
@@ -903,17 +926,38 @@ function getFieldLabel(element) {
 
 // Highlight a field that was filled
 function highlightField(element) {
-    const originalBackground = element.style.backgroundColor;
-    const originalBorder = element.style.border;
+    // Store original styles if not already stored
+    if (!element.dataset.originalBackground) {
+        element.dataset.originalBackground = element.style.backgroundColor || '';
+        element.dataset.originalBorder = element.style.border || '';
+    }
     
+    // Apply green highlight
     element.style.backgroundColor = '#e8f5e8';
     element.style.border = '2px solid #4CAF50';
     element.style.transition = 'all 0.3s ease';
     
-    setTimeout(() => {
-        element.style.backgroundColor = originalBackground;
-        element.style.border = originalBorder;
-    }, 2000);
+    // Add marker to track highlighted fields
+    element.dataset.intellifillHighlighted = 'true';
+    
+    // Remove highlight on user interaction
+    const removeHighlight = () => {
+        element.style.backgroundColor = element.dataset.originalBackground;
+        element.style.border = element.dataset.originalBorder;
+        element.removeAttribute('data-intellifill-highlighted');
+        element.removeAttribute('data-original-background');
+        element.removeAttribute('data-original-border');
+        
+        // Remove event listeners
+        element.removeEventListener('input', removeHighlight);
+        element.removeEventListener('change', removeHighlight);
+        element.removeEventListener('focus', removeHighlight);
+    };
+    
+    // Add event listeners to remove highlight on user interaction
+    element.addEventListener('input', removeHighlight, { once: true });
+    element.addEventListener('change', removeHighlight, { once: true });
+    element.addEventListener('focus', removeHighlight, { once: true });
 }
 
 // Show notification on the page
@@ -1035,12 +1079,18 @@ if (isExtensionContextValid()) {
                         sendResponse({ success: true });
                         break;
                         
-                    case 'highlight':
-                        // Highlight all form fields
-                        const inputs = document.querySelectorAll('input, textarea, select');
-                        inputs.forEach(input => highlightField(input));
-                        sendResponse({ success: true, fieldCount: inputs.length });
-                        break;
+                                    case 'highlight':
+                    // Highlight all form fields
+                    const inputs = document.querySelectorAll('input, textarea, select');
+                    inputs.forEach(input => highlightField(input));
+                    sendResponse({ success: true, fieldCount: inputs.length });
+                    break;
+                    
+                case 'clearHighlights':
+                    // Clear all highlights
+                    cleanupHighlights();
+                    sendResponse({ success: true, message: 'Highlights cleared' });
+                    break;
                         
                     default:
                         sendResponse({ success: false, error: 'Unknown action' });
@@ -1057,9 +1107,27 @@ if (isExtensionContextValid()) {
     }
 }
 
+// Function to clean up all highlights
+function cleanupHighlights() {
+    const highlightedFields = document.querySelectorAll('[data-intellifill-highlighted="true"]');
+    highlightedFields.forEach(element => {
+        element.style.backgroundColor = element.dataset.originalBackground || '';
+        element.style.border = element.dataset.originalBorder || '';
+        element.removeAttribute('data-intellifill-highlighted');
+        element.removeAttribute('data-original-background');
+        element.removeAttribute('data-original-border');
+    });
+}
+
 // Clean up when page unloads
 window.addEventListener('beforeunload', () => {
     stopPolling();
+    cleanupHighlights();
+});
+
+// Clean up highlights when navigating away (for single-page apps)
+window.addEventListener('pagehide', () => {
+    cleanupHighlights();
 });
 
 // Additional cleanup - check extension context periodically
