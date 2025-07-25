@@ -106,50 +106,48 @@ function autofillFormAdvanced(data) {
     // Flatten and normalize the data structure
     const flattenedData = flattenData(data);
     console.log('Flattened data:', flattenedData);
+    console.log('Keys in flattened data:', Object.keys(flattenedData));
     
     let filledFields = 0;
     const fieldMappings = {
-        // Business information
-        'Name of Business': ['businessname', 'business_name', 'company_name', 'name', 'business'],
-        'DBA Name': ['dba', 'dba_name', 'doing_business_as', 'trade_name'],
-        'Website URL': ['website', 'url', 'website_url', 'site', 'homepage'],
-        'Business entity type': ['entity_type', 'business_type', 'entity', 'type'],
-        'Is the Business non-profit?': ['nonprofit', 'non_profit', 'non-profit'],
-        'Year the Business was started': ['start_year', 'year_started', 'founded', 'established'],
-        'Description of Business operations': ['description', 'business_description', 'operations'],
-        'Years of management experience in industry': ['experience', 'management_experience', 'years_experience'],
-        'Annual revenue': ['revenue', 'annual_revenue', 'income'],
-        'Total Number of Full-Time Employees': ['full_time_employees', 'fulltime_employees', 'employees'],
-        'Total Number of Part-Time Employees': ['part_time_employees', 'parttime_employees'],
-        'Total Payroll': ['payroll', 'total_payroll'],
+        // Business information - direct field mappings
+        'businessName': ['businessname', 'business_name', 'company_name', 'business', 'company', 'organization'],
+        'doingBusinessAs': ['dba', 'dba_name', 'doing_business_as', 'trade_name', 'dbaname'],
+        'businessWebsite': ['website', 'url', 'website_url', 'site', 'homepage', 'web_site'],
+        'natureOfOperations': ['description', 'business_description', 'operations', 'nature_of_business', 'business_type', 'type_of_business'],
+        'naics': ['naics_code', 'naics', 'industry_code', 'sic_code'],
+        'fein': ['fein', 'ein', 'employer_id', 'tax_id', 'federal_tax_id'],
+        'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income'],
+        'yearsOfManagementExperience': ['experience', 'management_experience', 'years_experience', 'management_years','yearsOfExperience'],
+        'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year'],
+        'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
         
-        // Personal information
-        'First Name': ['firstname', 'first_name', 'fname', 'given_name'],
-        'Last Name': ['lastname', 'last_name', 'lname', 'family_name', 'surname'],
-        'Phone Number': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone'],
-        'Email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email'],
+        // Contact information - from contacts array
+        'phone': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone', 'business_phone', 'office_phone'],
+        'email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email', 'business_email'],
+        'fax': ['fax', 'fax_number', 'fax_phone', 'facsimile'],
         
-        // Address fields
-        'Street': ['address', 'street', 'address1', 'street_address'],
-        'City': ['city', 'town', 'locality'],
-        'State': ['state', 'province', 'region'],
-        'ZIP': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode'],
-        
-        // Policy dates
-        'Policy Effective Date': ['effective_date', 'start_date', 'policy_start'],
-        'Policy Expiration Date': ['expiration_date', 'end_date', 'policy_end'],
-        
-        // Special fields
-        'Mailing address is same as Primary address?': ['same_address', 'mailing_same', 'address_same']
+        // Address fields - from mailingAddress object
+        'street': ['address', 'street', 'address1', 'street_address', 'mailing_address', 'business_address'],
+        'city': ['city', 'town', 'locality', 'business_city'],
+        'state': ['state', 'province', 'region', 'business_state'],
+        'zip': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
+        'zipCode': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
     };
     
     // Process each field in the flattened data
     for (const [key, value] of Object.entries(flattenedData)) {
         if (value === null || value === undefined || value === '') continue;
         
+        console.log(`Trying to fill field: ${key} = ${value}`);
         const element = findFormElementAdvanced(key, value, fieldMappings);
-        if (element && fillField(element, value)) {
-            filledFields++;
+        if (element) {
+            console.log(`Found element for ${key}:`, element.name || element.id || element.placeholder);
+            if (fillField(element, value)) {
+                filledFields++;
+            }
+        } else {
+            console.log(`No element found for ${key}`);
         }
     }
     
@@ -224,20 +222,54 @@ function findFormElementAdvanced(key, value, fieldMappings) {
         }
     }
     
-    // 3. Try fuzzy matching with cleaned key
-    const allInputs = document.querySelectorAll('input, textarea, select');
-    for (const input of allInputs) {
-        const name = (input.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const id = (input.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const placeholder = (input.placeholder || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const label = getFieldLabel(input).toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        if (name.includes(keyLower) || id.includes(keyLower) || 
-            placeholder.includes(keyLower) || label.includes(keyLower) ||
-            keyLower.includes(name) || keyLower.includes(id)) {
-            return input;
-        }
-    }
+    // 3. Try fuzzy matching with cleaned key (DISABLED - using exact matches only)
+    // const allInputs = document.querySelectorAll('input, textarea, select');
+    // for (const input of allInputs) {
+    //     const name = (input.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    //     const id = (input.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    //     const placeholder = (input.placeholder || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    //     const label = getFieldLabel(input).toLowerCase().replace(/[^a-z0-9]/g, '');
+    //     
+    //     // For boolean values, only match to checkbox/radio fields or exact matches
+    //     if (typeof value === 'boolean') {
+    //         const inputType = input.type ? input.type.toLowerCase() : '';
+    //         if (inputType === 'checkbox' || inputType === 'radio') {
+    //             if (name.includes(keyLower) || id.includes(keyLower) || 
+    //                 placeholder.includes(keyLower) || label.includes(keyLower)) {
+    //                 return input;
+    //             }
+    //         }
+    //         // Skip fuzzy matching for boolean values to prevent false matches
+    //         continue;
+    //     }
+    //     
+    //     // For zip/zipCode fields, be very specific to avoid matching business name fields
+    //     if (keyLower === 'zip' || keyLower === 'zipcode') {
+    //         // Only match to fields that are clearly zip-related
+    //         const zipRelatedTerms = ['zip', 'zipcode', 'postal', 'postcode'];
+    //         const fieldText = (name + ' ' + id + ' ' + placeholder + ' ' + label).toLowerCase();
+    //             
+    //         if (zipRelatedTerms.some(term => fieldText.includes(term))) {
+    //             return input;
+    //         }
+    //         // Skip fuzzy matching for zip fields to prevent false matches
+    //         continue;
+    //     }
+    //     
+    //     // More precise fuzzy matching - avoid bidirectional matching for short keys
+    //     if (name.includes(keyLower) || id.includes(keyLower) || 
+    //         placeholder.includes(keyLower) || label.includes(keyLower)) {
+    //         console.log(`Fuzzy match found for ${key} (${keyLower}):`, input.name || input.id || input.placeholder);
+    //         return input;
+    //     }
+    //     
+    //     // Only do bidirectional matching for longer keys (4+ characters) to avoid false matches
+    //     // This prevents short keys like 'zip' from matching longer field names
+    //     if (keyLower.length >= 4 && (keyLower.includes(name) || keyLower.includes(id))) {
+    //         console.log(`Bidirectional match found for ${key} (${keyLower}):`, input.name || input.id || input.placeholder);
+    //         return input;
+    //     }
+    // }
     
     return null;
 }
@@ -247,58 +279,67 @@ function fillField(element, value) {
     try {
         const tagName = element.tagName.toLowerCase();
         const type = element.type ? element.type.toLowerCase() : '';
+        let success = false;
         
         // Handle different input types
         switch (type) {
             case 'radio':
-                return fillRadioButtonAdvanced(element, value);
+                success = fillRadioButtonAdvanced(element, value);
+                break;
                 
             case 'checkbox':
-                return fillCheckboxAdvanced(element, value);
+                success = fillCheckboxAdvanced(element, value);
+                break;
                 
             case 'date':
-                return fillDateFieldAdvanced(element, value);
+                success = fillDateFieldAdvanced(element, value);
+                break;
                 
             case 'email':
                 if (isValidEmail(value)) {
                     element.value = value;
-                    return true;
+                    success = true;
                 }
                 break;
                 
             case 'url':
                 if (isValidUrl(value)) {
                     element.value = value;
-                    return true;
+                    success = true;
                 }
                 break;
                 
             case 'tel':
                 element.value = formatPhoneNumber(value);
-                return true;
+                success = true;
+                break;
                 
             case 'number':
                 element.value = value.toString();
-                return true;
+                success = true;
+                break;
                 
             default:
                 if (tagName === 'select') {
-                    return fillSelectElementAdvanced(element, value);
+                    success = fillSelectElementAdvanced(element, value);
                 } else {
                     element.value = value.toString();
-                    return true;
+                    success = true;
                 }
+                break;
         }
         
-        // Trigger events to ensure form validation and updates
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-        element.dispatchEvent(new Event('blur', { bubbles: true }));
+        if (success) {
+            // Trigger events to ensure form validation and updates
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+            element.dispatchEvent(new Event('blur', { bubbles: true }));
+            
+            // Visual feedback
+            highlightField(element);
+        }
         
-        // Visual feedback
-        highlightField(element);
-        
-        return true;
+        return success;
     } catch (error) {
         console.error('Error filling field:', error);
         return false;
@@ -317,8 +358,6 @@ function fillRadioButtonAdvanced(element, value) {
             (value === true && (radioValue === 'yes' || radioValue === 'true' || radioValue === '1')) ||
             (value === false && (radioValue === 'no' || radioValue === 'false' || radioValue === '0'))) {
             radio.checked = true;
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            highlightField(radio);
             return true;
         }
     }
@@ -331,8 +370,6 @@ function fillCheckboxAdvanced(element, value) {
     } else if (value === false || value === 'No' || value === 'false' || value === '0') {
         element.checked = false;
     }
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    highlightField(element);
     return true;
 }
 
@@ -344,8 +381,6 @@ function fillDateFieldAdvanced(element, value) {
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             element.value = `${year}-${month}-${day}`;
-            element.dispatchEvent(new Event('change', { bubbles: true }));
-            highlightField(element);
             return true;
         }
     } catch (error) {
@@ -365,8 +400,6 @@ function fillSelectElementAdvanced(element, value) {
         if (optionValue === valueStr || optionText === valueStr ||
             optionValue.includes(valueStr) || optionText.includes(valueStr)) {
             element.value = option.value;
-            element.dispatchEvent(new Event('change', { bubbles: true }));
-            highlightField(element);
             return true;
         }
     }

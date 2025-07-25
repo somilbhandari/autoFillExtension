@@ -1,6 +1,6 @@
 // Configuration
-const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook/14591d83-e679-486d-a00e-1ab2e05e9894';
-const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook/get-data'; // You'll need to set this up in n8n
+const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894'; // You'll need to set this up in n8n
 
 let isPolling = false;
 let pollInterval = null;
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.processedData) {
             processedData = result.processedData;
             autofillBtn.disabled = false;
-            showStatus('Data ready for autofill', 'success');
+            showStatus('Data ready for autofill' + JSON.stringify(result.processedData), 'success');
         }
     });
 });
@@ -78,7 +78,7 @@ async function processUrl() {
             
             processBtn.disabled = false;
             autofillBtn.disabled = false;
-            showStatus('Data received! Ready to autofill form.', 'success');
+            showStatus('Data received! Ready to autofill form.' + JSON.stringify(result), 'success');
         } else {
             // Start polling for results (if you set up a separate polling endpoint later)
             showStatus('URL sent successfully. Polling for results...', 'loading');
