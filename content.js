@@ -3,8 +3,11 @@
 
 // Configuration
 const EXTENSION_ID = 'n8n-form-autofiller';
-const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
-const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+// const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+// const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+
+const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
 
 let isInitialized = false;
 let isPolling = false;
@@ -101,42 +104,45 @@ function addFloatingInterface() {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     `;
     
-    // Create floating button
-    const floatingBtn = document.createElement('div');
-    floatingBtn.id = `${EXTENSION_ID}-floating-btn`;
-    floatingBtn.style.cssText = `
-        position: fixed;
-        top: 50%;
-        right: 20px;
-        transform: translateY(-50%);
-        width: 50px;
-        height: 50px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 50%;
-        cursor: pointer;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 20px;
-        font-weight: bold;
-        transition: all 0.3s ease;
-        z-index: 10001;
+         // Create floating button
+     const floatingBtn = document.createElement('div');
+     floatingBtn.id = `${EXTENSION_ID}-floating-btn`;
+     floatingBtn.style.cssText = `
+         position: fixed;
+         top: 50%;
+         right: 20px;
+         transform: translateY(-50%);
+                  width: 50px;
+         height: 50px;
+         background: linear-gradient(135deg, #624de3 0%, #3639a4 100%);
+         border-radius: 50%;
+         cursor: pointer;
+         box-shadow: 0 4px 20px rgba(54, 57, 164, 0.5);
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         color: white;
+         font-size: 20px;
+         font-weight: bold;
+         transition: all 0.3s ease;
+         z-index: 10001;
+         border: 2px solid rgba(98, 77, 227, 0.3);
     `;
     floatingBtn.innerHTML = '🤖';
     floatingBtn.title = 'N8N Form Autofiller';
     
-    // Add hover effect to button
-    floatingBtn.addEventListener('mouseenter', () => {
-        floatingBtn.style.transform = 'translateY(-50%) scale(1.1)';
-        floatingBtn.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.4)';
-    });
-    
-    floatingBtn.addEventListener('mouseleave', () => {
-        floatingBtn.style.transform = 'translateY(-50%) scale(1)';
-        floatingBtn.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
-    });
+         // Add hover effect to button
+     floatingBtn.addEventListener('mouseenter', () => {
+         floatingBtn.style.transform = 'translateY(-50%) scale(1.1)';
+         floatingBtn.style.boxShadow = '0 6px 25px rgba(54, 57, 164, 0.8)';
+         floatingBtn.style.background = 'linear-gradient(135deg, #3639a4 0%, #624de3 100%)';
+     });
+     
+     floatingBtn.addEventListener('mouseleave', () => {
+         floatingBtn.style.transform = 'translateY(-50%) scale(1)';
+         floatingBtn.style.boxShadow = '0 4px 20px rgba(54, 57, 164, 0.5)';
+         floatingBtn.style.background = 'linear-gradient(135deg, #624de3 0%, #3639a4 100%)';
+     });
     
          // Create sliding panel
      const slidingPanel = document.createElement('div');
@@ -147,38 +153,43 @@ function addFloatingInterface() {
          right: -420px;
          transform: translateY(-50%);
          width: 400px;
-         max-height: 500px;
-         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-         box-shadow: -5px 0 20px rgba(0, 0, 0, 0.3);
+         height: auto;
+         max-height: 90vh;
+         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e7e3ff 100%);
          transition: right 0.3s ease;
          z-index: 10000;
          overflow-y: auto;
-         padding: 20px;
+         padding: 15px;
          box-sizing: border-box;
          border-radius: 15px 0 0 15px;
+         border-left: 6px solid #624de3;
      `;
     
     // Create panel content
     slidingPanel.innerHTML = `
-        <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 20px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); color: white;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                                 <h1 style="margin: 0; font-size: 18px; font-weight: 600;">🤖 IntelliFill - CoverFroce Form Autofiller</h1>
-                <button id="${EXTENSION_ID}-close-btn" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s;">×</button>
+                 <div style="background: rgba(255, 255, 255, 0.9); border-radius: 12px; padding: 16px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); color: #1f2937; border: 1px solid rgba(98, 77, 227, 0.2);">
+                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                 <h1 style="margin: 0; font-size: 18px; font-weight: 600; color: #624de3;">🤖 IntelliFill - CoverFroce Form Autofiller</h1>
+                                 <button id="${EXTENSION_ID}-close-btn" style="background: none; border: none; color: #6b7280; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;">×</button>
             </div>
             
-                         <div style="margin-bottom: 15px;">
-                 <label style="display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">URL to Process:</label>
-                 <input type="text" id="${EXTENSION_ID}-url-input" placeholder="example.com or https://example.com" required style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px; box-sizing: border-box;">
+                         <div style="margin-bottom: 12px;">
+                 <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; color: #374151;">URL to Process:</label>
+                 <input type="text" id="${EXTENSION_ID}-url-input" placeholder="example.com or https://example.com" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; color: #374151; font-size: 14px; box-sizing: border-box; transition: border-color 0.2s; outline: none;">
              </div>
              
-             <div style="margin-bottom: 15px;">
-                 <label style="display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Additional Data (Optional):</label>
-                 <textarea id="${EXTENSION_ID}-data-input" placeholder="Enter any additional unstructured data..." style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px; box-sizing: border-box; min-height: 80px; resize: vertical; font-family: inherit;"></textarea>
+             <div style="margin-bottom: 12px;">
+                 <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; color: #374151;">Data to Process:</label>
+                 <textarea id="${EXTENSION_ID}-data-input" placeholder="Enter any unstructured data to process..." style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; color: #374151; font-size: 14px; box-sizing: border-box; min-height: 70px; resize: vertical; font-family: inherit; transition: border-color 0.2s; outline: none;"></textarea>
+             </div>
+             
+             <div style="margin-bottom: 12px; padding: 8px 10px; background: linear-gradient(135deg, rgba(98, 77, 227, 0.1) 0%, rgba(54, 57, 164, 0.1) 100%); border: 1px solid rgba(98, 77, 227, 0.3); border-radius: 6px; font-size: 12px; color: #4b5563;">
+                 <strong style="color: #624de3;">Note:</strong> Please provide either a URL or data (or both).
              </div>
             
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #4CAF50; color: white;">Process URL</button>
-                <button id="${EXTENSION_ID}-autofill-btn" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #2196F3; color: white;" disabled>Autofill Form</button>
+                         <div style="display: flex; gap: 10px; margin-top: 16px;">
+                                 <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: 1px solid #f59e0b; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #f59e0b; color: white;">Process Data</button>
+                                 <button id="${EXTENSION_ID}-autofill-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;" disabled>Autofill Form</button>
             </div>
             
             <div id="${EXTENSION_ID}-status" style="margin-top: 15px; padding: 10px; border-radius: 8px; font-size: 13px; text-align: center; display: none;"></div>
@@ -220,7 +231,7 @@ function setupEventListeners(floatingBtn, slidingPanel) {
     
     // Process button click
     processBtn.addEventListener('click', () => {
-        processUrl();
+        processData();
     });
     
     // Autofill button click
@@ -238,13 +249,36 @@ function setupEventListeners(floatingBtn, slidingPanel) {
         safeStorageSet({ lastData: dataInput.value });
     });
     
+    // Add focus effects for inputs
+    urlInput.addEventListener('focus', () => {
+        urlInput.style.borderColor = '#624de3';
+        urlInput.style.boxShadow = '0 0 0 3px rgba(98, 77, 227, 0.1)';
+    });
+    
+    urlInput.addEventListener('blur', () => {
+        urlInput.style.borderColor = '#d1d5db';
+        urlInput.style.boxShadow = 'none';
+    });
+    
+    dataInput.addEventListener('focus', () => {
+        dataInput.style.borderColor = '#624de3';
+        dataInput.style.boxShadow = '0 0 0 3px rgba(98, 77, 227, 0.1)';
+    });
+    
+    dataInput.addEventListener('blur', () => {
+        dataInput.style.borderColor = '#d1d5db';
+        dataInput.style.boxShadow = 'none';
+    });
+    
     // Close button hover effect
     closeBtn.addEventListener('mouseenter', () => {
-        closeBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+        closeBtn.style.background = 'rgba(107, 114, 128, 0.1)';
+        closeBtn.style.color = '#374151';
     });
     
     closeBtn.addEventListener('mouseleave', () => {
         closeBtn.style.background = 'none';
+        closeBtn.style.color = '#6b7280';
     });
 }
 
@@ -294,7 +328,7 @@ function loadSavedData() {
     });
 }
 
-async function processUrl() {
+async function processData() {
     const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
     const dataInput = document.getElementById(`${EXTENSION_ID}-data-input`);
     const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
@@ -303,12 +337,14 @@ async function processUrl() {
     const url = urlInput.value.trim();
     const data = dataInput.value.trim();
     
-    if (!url) {
-        showStatus('Please enter a valid URL', 'error');
+    // Check that at least one field is provided
+    if (!url && !data) {
+        showStatus('Please provide either a URL or data to process', 'error');
         return;
     }
 
-    if (!isValidUrl(url)) {
+    // If URL is provided, validate it
+    if (url && !isValidUrl(url)) {
         showStatus('Please enter a valid URL format', 'error');
         return;
     }
@@ -316,15 +352,24 @@ async function processUrl() {
     try {
         processBtn.disabled = true;
         autofillBtn.disabled = true;
-        showStatus('Processing URL...', 'loading');
+        showStatus('Processing data...', 'loading');
 
-        // Normalize the URL (add https:// if needed)
-        const normalizedUrl = normalizeUrl(url);
+        // Build webhook URL with provided parameters
+        let webhookUrl = N8N_WEBHOOK_URL;
+        const params = [];
         
-        // Send URL to n8n webhook
-        let webhookUrl = `${N8N_WEBHOOK_URL}?url=${encodeURIComponent(normalizedUrl)}`;
+        if (url) {
+            // Normalize the URL (add https:// if needed)
+            const normalizedUrl = normalizeUrl(url);
+            params.push(`url=${encodeURIComponent(normalizedUrl)}`);
+        }
+        
         if (data) {
-            webhookUrl += `&data=${encodeURIComponent(data)}`;
+            params.push(`data=${encodeURIComponent(data)}`);
+        }
+        
+        if (params.length > 0) {
+            webhookUrl += '?' + params.join('&');
         }
         const response = await fetch(webhookUrl, {
             method: 'GET'
@@ -348,12 +393,12 @@ async function processUrl() {
             showStatus('Data received! Ready to autofill form.', 'success');
         } else {
             // Start polling for results
-            showStatus('URL sent successfully. Polling for results...', 'loading');
+            showStatus('Data sent successfully. Polling for results...', 'loading');
             startPolling();
         }
 
     } catch (error) {
-        console.error('Error sending URL to n8n:', error);
+        console.error('Error sending data to n8n:', error);
         showStatus(`Error: ${error.message}`, 'error');
         processBtn.disabled = false;
     }
@@ -427,7 +472,7 @@ function stopPolling() {
 
 async function autofillForm() {
     if (!processedData) {
-        showStatus('No data to autofill. Process a URL first.', 'error');
+        showStatus('No data to autofill. Process some data first.', 'error');
         return;
     }
 
@@ -588,13 +633,13 @@ function autofillFormAdvanced(data) {
         // Business information - direct field mappings
         'businessName': ['businessname', 'business_name', 'company_name', 'business', 'company', 'organization'],
         'doingBusinessAs': ['dba', 'dba_name', 'doing_business_as', 'trade_name', 'dbaname'],
-        'businessWebsite': ['website', 'url', 'website_url', 'site', 'homepage', 'web_site'],
+        'businessWebsite': ['website', 'url', 'website_url', 'site', 'homepage', 'web_site', 'businessWebsite', 'business_website'],
         'natureOfOperations': ['description', 'business_description', 'operations', 'nature_of_business', 'business_type', 'type_of_business'],
         'naics': ['naics_code', 'naics', 'industry_code', 'sic_code'],
         'fein': ['fein', 'ein', 'employer_id', 'tax_id', 'federal_tax_id'],
         'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income'],
         'yearsOfManagementExperience': ['experience', 'management_experience', 'years_experience', 'management_years','yearsOfExperience'],
-        'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year'],
+        'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year', 'businessYearOfFounding'],
         'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
         
         // Contact information - from contacts array
