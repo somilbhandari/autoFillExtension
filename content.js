@@ -12,6 +12,62 @@ let pollInterval = null;
 let processedData = null;
 let isSlideOpen = false;
 
+// Helper function to check if extension context is still valid
+function isExtensionContextValid() {
+    try {
+        return chrome.runtime && chrome.runtime.id;
+    } catch (error) {
+        return false;
+    }
+}
+
+// Safe wrapper for chrome storage operations
+function safeStorageGet(keys, callback) {
+    if (!isExtensionContextValid()) {
+        console.log('Extension context invalidated, skipping storage get');
+        return;
+    }
+    
+    try {
+        chrome.storage.local.get(keys, callback);
+    } catch (error) {
+        console.log('Storage get failed:', error);
+    }
+}
+
+function safeStorageSet(data) {
+    if (!isExtensionContextValid()) {
+        console.log('Extension context invalidated, skipping storage set');
+        return;
+    }
+    
+    try {
+        chrome.storage.local.set(data);
+    } catch (error) {
+        console.log('Storage set failed:', error);
+    }
+}
+
+// Safe wrapper for chrome runtime messages
+function safeSendMessage(message, callback = null) {
+    if (!isExtensionContextValid()) {
+        console.log('Extension context invalidated, skipping message send');
+        return;
+    }
+    
+    try {
+        if (callback) {
+            chrome.runtime.sendMessage(message, callback);
+        } else {
+            chrome.runtime.sendMessage(message).catch(error => {
+                console.log('Message send failed:', error);
+            });
+        }
+    } catch (error) {
+        console.log('Message send failed:', error);
+    }
+}
+
 // Initialize the content script
 function initialize() {
     if (isInitialized) return;
@@ -110,10 +166,15 @@ function addFloatingInterface() {
                 <button id="${EXTENSION_ID}-close-btn" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s;">×</button>
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">URL to Process:</label>
-                <input type="url" id="${EXTENSION_ID}-url-input" placeholder="https://example.com" required style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px; box-sizing: border-box;">
-            </div>
+                         <div style="margin-bottom: 15px;">
+                 <label style="display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">URL to Process:</label>
+                 <input type="text" id="${EXTENSION_ID}-url-input" placeholder="example.com or https://example.com" required style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px; box-sizing: border-box;">
+             </div>
+             
+             <div style="margin-bottom: 15px;">
+                 <label style="display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Additional Data (Optional):</label>
+                 <textarea id="${EXTENSION_ID}-data-input" placeholder="Enter any additional unstructured data..." style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px; box-sizing: border-box; min-height: 80px; resize: vertical; font-family: inherit;"></textarea>
+             </div>
             
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #4CAF50; color: white;">Process URL</button>
@@ -135,6 +196,7 @@ function addFloatingInterface() {
 
 function setupEventListeners(floatingBtn, slidingPanel) {
     const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
+    const dataInput = document.getElementById(`${EXTENSION_ID}-data-input`);
     const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
     const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
     const closeBtn = document.getElementById(`${EXTENSION_ID}-close-btn`);
@@ -168,7 +230,12 @@ function setupEventListeners(floatingBtn, slidingPanel) {
     
     // Save URL when typing
     urlInput.addEventListener('input', () => {
-        chrome.storage.local.set({ lastUrl: urlInput.value });
+        safeStorageSet({ lastUrl: urlInput.value });
+    });
+    
+    // Save data when typing
+    dataInput.addEventListener('input', () => {
+        safeStorageSet({ lastData: dataInput.value });
     });
     
     // Close button hover effect
@@ -201,17 +268,25 @@ function closeSlidePanel(panel) {
 
 function loadSavedData() {
     // Load saved URL if any
-    chrome.storage.local.get(['lastUrl'], (result) => {
+    safeStorageGet(['lastUrl'], (result) => {
         const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
-        if (result.lastUrl && urlInput) {
+        if (result && result.lastUrl && urlInput) {
             urlInput.value = result.lastUrl;
+        }
+    });
+    
+    // Load saved data if any
+    safeStorageGet(['lastData'], (result) => {
+        const dataInput = document.getElementById(`${EXTENSION_ID}-data-input`);
+        if (result && result.lastData && dataInput) {
+            dataInput.value = result.lastData;
         }
     });
 
     // Check if we have processed data
-    chrome.storage.local.get(['processedData'], (result) => {
+    safeStorageGet(['processedData'], (result) => {
         const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
-        if (result.processedData && autofillBtn) {
+        if (result && result.processedData && autofillBtn) {
             processedData = result.processedData;
             autofillBtn.disabled = false;
             showStatus('Data ready for autofill', 'success');
@@ -221,10 +296,12 @@ function loadSavedData() {
 
 async function processUrl() {
     const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
+    const dataInput = document.getElementById(`${EXTENSION_ID}-data-input`);
     const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
     const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
     
     const url = urlInput.value.trim();
+    const data = dataInput.value.trim();
     
     if (!url) {
         showStatus('Please enter a valid URL', 'error');
@@ -241,8 +318,14 @@ async function processUrl() {
         autofillBtn.disabled = true;
         showStatus('Processing URL...', 'loading');
 
+        // Normalize the URL (add https:// if needed)
+        const normalizedUrl = normalizeUrl(url);
+        
         // Send URL to n8n webhook
-        const webhookUrl = `${N8N_WEBHOOK_URL}?url=${encodeURIComponent(url)}`;
+        let webhookUrl = `${N8N_WEBHOOK_URL}?url=${encodeURIComponent(normalizedUrl)}`;
+        if (data) {
+            webhookUrl += `&data=${encodeURIComponent(data)}`;
+        }
         const response = await fetch(webhookUrl, {
             method: 'GET'
         });
@@ -258,7 +341,7 @@ async function processUrl() {
         if (result && Object.keys(result).length > 0 && !result.message) {
             // We got the processed data directly!
             processedData = result;
-            chrome.storage.local.set({ processedData: result });
+            safeStorageSet({ processedData: result });
             
             processBtn.disabled = false;
             autofillBtn.disabled = false;
@@ -287,6 +370,13 @@ function startPolling() {
     const maxAttempts = 30; // 5 minutes with 10-second intervals
 
     pollInterval = setInterval(async () => {
+        // Check if extension context is still valid
+        if (!isExtensionContextValid()) {
+            console.log('Extension context invalidated, stopping polling');
+            stopPolling();
+            return;
+        }
+        
         attempts++;
         
         try {
@@ -298,7 +388,7 @@ function startPolling() {
                 if (data && Object.keys(data).length > 0) {
                     // We got data!
                     processedData = data;
-                    chrome.storage.local.set({ processedData: data });
+                    safeStorageSet({ processedData: data });
                     
                     stopPolling();
                     processBtn.disabled = false;
@@ -415,11 +505,45 @@ function showStatus(message, type) {
 }
 
 function isValidUrl(string) {
+    // Remove whitespace
+    string = string.trim();
+    
+    // Allow empty strings to fail validation
+    if (!string) return false;
+    
+    // Try with the string as-is first
     try {
         new URL(string);
         return true;
     } catch (_) {
-        return false;
+        // If it fails, try adding https:// prefix
+        try {
+            new URL('https://' + string);
+            return true;
+        } catch (_) {
+            // Basic pattern check for domain-like strings
+            const domainPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?(\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?)*$/;
+            return domainPattern.test(string) || string.includes('.');
+        }
+    }
+}
+
+function normalizeUrl(string) {
+    // Remove whitespace
+    string = string.trim();
+    
+    // If it already has a protocol, return as-is
+    if (string.match(/^https?:\/\//)) {
+        return string;
+    }
+    
+    // Try to create URL with https:// prefix
+    try {
+        const url = new URL('https://' + string);
+        return url.toString();
+    } catch (_) {
+        // If that fails, just add https:// anyway
+        return 'https://' + string;
     }
 }
 
@@ -444,11 +568,9 @@ function detectForms() {
     };
     
     // Send form data to background script
-    chrome.runtime.sendMessage({
+    safeSendMessage({
         action: 'storePageInfo',
         data: formData
-    }).catch(error => {
-        console.log('Could not send message to background script:', error);
     });
 }
 
@@ -841,41 +963,66 @@ observer.observe(document.body, {
 });
 
 // Listen for messages from popup/background
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('Content script received message:', request);
-    
-    switch (request.action) {
-        case 'ping':
-            sendResponse({ success: true, message: 'Content script is active' });
-            break;
+if (isExtensionContextValid()) {
+    try {
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            // Check extension context on each message
+            if (!isExtensionContextValid()) {
+                console.log('Extension context invalidated, ignoring message');
+                return false;
+            }
             
-        case 'autofill':
-            const filledCount = autofillFormAdvanced(request.data);
-            sendResponse({ success: true, filledFields: filledCount });
-            break;
+            console.log('Content script received message:', request);
             
-        case 'detectForms':
-            detectForms();
-            sendResponse({ success: true });
-            break;
+            try {
+                switch (request.action) {
+                    case 'ping':
+                        sendResponse({ success: true, message: 'Content script is active' });
+                        break;
+                        
+                    case 'autofill':
+                        const filledCount = autofillFormAdvanced(request.data);
+                        sendResponse({ success: true, filledFields: filledCount });
+                        break;
+                        
+                    case 'detectForms':
+                        detectForms();
+                        sendResponse({ success: true });
+                        break;
+                        
+                    case 'highlight':
+                        // Highlight all form fields
+                        const inputs = document.querySelectorAll('input, textarea, select');
+                        inputs.forEach(input => highlightField(input));
+                        sendResponse({ success: true, fieldCount: inputs.length });
+                        break;
+                        
+                    default:
+                        sendResponse({ success: false, error: 'Unknown action' });
+                }
+            } catch (error) {
+                console.log('Error handling message:', error);
+                sendResponse({ success: false, error: error.message });
+            }
             
-        case 'highlight':
-            // Highlight all form fields
-            const inputs = document.querySelectorAll('input, textarea, select');
-            inputs.forEach(input => highlightField(input));
-            sendResponse({ success: true, fieldCount: inputs.length });
-            break;
-            
-        default:
-            sendResponse({ success: false, error: 'Unknown action' });
+            return true; // Keep the message channel open for async response
+        });
+    } catch (error) {
+        console.log('Failed to add message listener:', error);
     }
-    
-    return true; // Keep the message channel open for async response
-});
+}
 
 // Clean up when page unloads
 window.addEventListener('beforeunload', () => {
     stopPolling();
 });
+
+// Additional cleanup - check extension context periodically
+setInterval(() => {
+    if (!isExtensionContextValid() && isPolling) {
+        console.log('Extension context lost, cleaning up polling');
+        stopPolling();
+    }
+}, 5000); // Check every 5 seconds
 
 console.log('N8N Form Autofiller content script loaded'); 
