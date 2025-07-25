@@ -19,13 +19,10 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "run_at": "document_end"
     }
   ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "N8N Form Autofiller"
-  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

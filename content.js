@@ -3,7 +3,14 @@
 
 // Configuration
 const EXTENSION_ID = 'n8n-form-autofiller';
+const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+
 let isInitialized = false;
+let isPolling = false;
+let pollInterval = null;
+let processedData = null;
+let isSlideOpen = false;
 
 // Initialize the content script
 function initialize() {
@@ -12,62 +19,408 @@ function initialize() {
     console.log('N8N Form Autofiller content script initialized on:', window.location.href);
     isInitialized = true;
     
-    // Add visual indicator that the extension is active
-    addExtensionIndicator();
+    // Add floating button and sliding panel
+    addFloatingInterface();
     
     // Listen for form detection requests
     detectForms();
+    
+    // Load saved data
+    loadSavedData();
 }
 
-// Add a small visual indicator that the extension is active
-function addExtensionIndicator() {
+// Add floating button and sliding panel interface
+function addFloatingInterface() {
     // Only add if not already present
-    if (document.querySelector(`#${EXTENSION_ID}-indicator`)) return;
+    if (document.querySelector(`#${EXTENSION_ID}-container`)) return;
     
-    const indicator = document.createElement('div');
-    indicator.id = `${EXTENSION_ID}-indicator`;
-    indicator.style.cssText = `
+    // Create container
+    const container = document.createElement('div');
+    container.id = `${EXTENSION_ID}-container`;
+    container.style.cssText = `
         position: fixed;
-        bottom: 20px;
-        left: 20px;
-        width: 40px;
-        height: 40px;
+        top: 0;
+        right: 0;
+        z-index: 10000;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+    
+    // Create floating button
+    const floatingBtn = document.createElement('div');
+    floatingBtn.id = `${EXTENSION_ID}-floating-btn`;
+    floatingBtn.style.cssText = `
+        position: fixed;
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        width: 50px;
+        height: 50px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 50%;
-        z-index: 9999;
         cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 16px;
+        font-size: 20px;
         font-weight: bold;
-        opacity: 0.7;
         transition: all 0.3s ease;
+        z-index: 10001;
     `;
-    indicator.innerHTML = '🤖';
-    indicator.title = 'N8N Form Autofiller - Click to open';
+    floatingBtn.innerHTML = '🤖';
+    floatingBtn.title = 'N8N Form Autofiller';
     
-    // Add hover effect
-    indicator.addEventListener('mouseenter', () => {
-        indicator.style.opacity = '1';
-        indicator.style.transform = 'scale(1.1)';
+    // Add hover effect to button
+    floatingBtn.addEventListener('mouseenter', () => {
+        floatingBtn.style.transform = 'translateY(-50%) scale(1.1)';
+        floatingBtn.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.4)';
     });
     
-    indicator.addEventListener('mouseleave', () => {
-        indicator.style.opacity = '0.7';
-        indicator.style.transform = 'scale(1)';
+    floatingBtn.addEventListener('mouseleave', () => {
+        floatingBtn.style.transform = 'translateY(-50%) scale(1)';
+        floatingBtn.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
     });
     
-    // Click to open extension popup (if possible)
-    indicator.addEventListener('click', () => {
-        // We can't directly open the popup from content script,
-        // but we can show a message
-        showNotification('Click the extension icon in the toolbar to open N8N Form Autofiller', 'info');
+         // Create sliding panel
+     const slidingPanel = document.createElement('div');
+     slidingPanel.id = `${EXTENSION_ID}-sliding-panel`;
+     slidingPanel.style.cssText = `
+         position: fixed;
+         top: 50%;
+         right: -420px;
+         transform: translateY(-50%);
+         width: 400px;
+         max-height: 500px;
+         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+         box-shadow: -5px 0 20px rgba(0, 0, 0, 0.3);
+         transition: right 0.3s ease;
+         z-index: 10000;
+         overflow-y: auto;
+         padding: 20px;
+         box-sizing: border-box;
+         border-radius: 15px 0 0 15px;
+     `;
+    
+    // Create panel content
+    slidingPanel.innerHTML = `
+        <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 20px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h1 style="margin: 0; font-size: 18px; font-weight: 600;">🤖 N8N Form Autofiller</h1>
+                <button id="${EXTENSION_ID}-close-btn" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s;">×</button>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">URL to Process:</label>
+                <input type="url" id="${EXTENSION_ID}-url-input" placeholder="https://example.com" required style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px; box-sizing: border-box;">
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #4CAF50; color: white;">Process URL</button>
+                <button id="${EXTENSION_ID}-autofill-btn" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #2196F3; color: white;" disabled>Autofill Form</button>
+            </div>
+            
+            <div id="${EXTENSION_ID}-status" style="margin-top: 15px; padding: 10px; border-radius: 8px; font-size: 13px; text-align: center; display: none;"></div>
+        </div>
+    `;
+    
+    // Add panel to container
+    container.appendChild(floatingBtn);
+    container.appendChild(slidingPanel);
+    document.body.appendChild(container);
+    
+    // Add event listeners
+    setupEventListeners(floatingBtn, slidingPanel);
+}
+
+function setupEventListeners(floatingBtn, slidingPanel) {
+    const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
+    const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
+    const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
+    const closeBtn = document.getElementById(`${EXTENSION_ID}-close-btn`);
+    
+    // Floating button click
+    floatingBtn.addEventListener('click', () => {
+        toggleSlidePanel(slidingPanel);
     });
     
-    document.body.appendChild(indicator);
+    // Close button click
+    closeBtn.addEventListener('click', () => {
+        closeSlidePanel(slidingPanel);
+    });
+    
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+        if (isSlideOpen && !slidingPanel.contains(e.target) && !floatingBtn.contains(e.target)) {
+            closeSlidePanel(slidingPanel);
+        }
+    });
+    
+    // Process button click
+    processBtn.addEventListener('click', () => {
+        processUrl();
+    });
+    
+    // Autofill button click
+    autofillBtn.addEventListener('click', () => {
+        autofillForm();
+    });
+    
+    // Save URL when typing
+    urlInput.addEventListener('input', () => {
+        chrome.storage.local.set({ lastUrl: urlInput.value });
+    });
+    
+    // Close button hover effect
+    closeBtn.addEventListener('mouseenter', () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+    });
+    
+    closeBtn.addEventListener('mouseleave', () => {
+        closeBtn.style.background = 'none';
+    });
+}
+
+function toggleSlidePanel(panel) {
+    if (isSlideOpen) {
+        closeSlidePanel(panel);
+    } else {
+        openSlidePanel(panel);
+    }
+}
+
+function openSlidePanel(panel) {
+    panel.style.right = '0px';
+    isSlideOpen = true;
+}
+
+function closeSlidePanel(panel) {
+    panel.style.right = '-420px';
+    isSlideOpen = false;
+}
+
+function loadSavedData() {
+    // Load saved URL if any
+    chrome.storage.local.get(['lastUrl'], (result) => {
+        const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
+        if (result.lastUrl && urlInput) {
+            urlInput.value = result.lastUrl;
+        }
+    });
+
+    // Check if we have processed data
+    chrome.storage.local.get(['processedData'], (result) => {
+        const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
+        if (result.processedData && autofillBtn) {
+            processedData = result.processedData;
+            autofillBtn.disabled = false;
+            showStatus('Data ready for autofill', 'success');
+        }
+    });
+}
+
+async function processUrl() {
+    const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
+    const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
+    const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
+    
+    const url = urlInput.value.trim();
+    
+    if (!url) {
+        showStatus('Please enter a valid URL', 'error');
+        return;
+    }
+
+    if (!isValidUrl(url)) {
+        showStatus('Please enter a valid URL format', 'error');
+        return;
+    }
+
+    try {
+        processBtn.disabled = true;
+        autofillBtn.disabled = true;
+        showStatus('Processing URL...', 'loading');
+
+        // Send URL to n8n webhook
+        const webhookUrl = `${N8N_WEBHOOK_URL}?url=${encodeURIComponent(url)}`;
+        const response = await fetch(webhookUrl, {
+            method: 'GET'
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('Webhook response:', result);
+
+        // Check if we got data directly from the webhook
+        if (result && Object.keys(result).length > 0 && !result.message) {
+            // We got the processed data directly!
+            processedData = result;
+            chrome.storage.local.set({ processedData: result });
+            
+            processBtn.disabled = false;
+            autofillBtn.disabled = false;
+            showStatus('Data received! Ready to autofill form.', 'success');
+        } else {
+            // Start polling for results
+            showStatus('URL sent successfully. Polling for results...', 'loading');
+            startPolling();
+        }
+
+    } catch (error) {
+        console.error('Error sending URL to n8n:', error);
+        showStatus(`Error: ${error.message}`, 'error');
+        processBtn.disabled = false;
+    }
+}
+
+function startPolling() {
+    if (isPolling) return;
+    
+    const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
+    const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
+    
+    isPolling = true;
+    let attempts = 0;
+    const maxAttempts = 30; // 5 minutes with 10-second intervals
+
+    pollInterval = setInterval(async () => {
+        attempts++;
+        
+        try {
+            const response = await fetch(N8N_POLL_URL);
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data && Object.keys(data).length > 0) {
+                    // We got data!
+                    processedData = data;
+                    chrome.storage.local.set({ processedData: data });
+                    
+                    stopPolling();
+                    processBtn.disabled = false;
+                    autofillBtn.disabled = false;
+                    showStatus('Data received! Ready to autofill form.', 'success');
+                    return;
+                }
+            }
+            
+            if (attempts >= maxAttempts) {
+                stopPolling();
+                processBtn.disabled = false;
+                showStatus('Timeout: No data received after 5 minutes', 'error');
+            } else {
+                showStatus(`Polling for results... (${attempts}/${maxAttempts})`, 'loading');
+            }
+            
+        } catch (error) {
+            console.error('Polling error:', error);
+            if (attempts >= maxAttempts) {
+                stopPolling();
+                processBtn.disabled = false;
+                showStatus('Error polling for results', 'error');
+            }
+        }
+    }, 10000); // Poll every 10 seconds
+}
+
+function stopPolling() {
+    isPolling = false;
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+async function autofillForm() {
+    if (!processedData) {
+        showStatus('No data to autofill. Process a URL first.', 'error');
+        return;
+    }
+
+    try {
+        console.log('Attempting to autofill with data:', processedData);
+        
+        const filledCount = autofillFormAdvanced(processedData);
+        
+        if (filledCount > 0) {
+            showStatus(`Form autofilled successfully! Filled ${filledCount} fields.`, 'success');
+            
+            // Optional: Close panel after successful autofill
+            setTimeout(() => {
+                const slidingPanel = document.getElementById(`${EXTENSION_ID}-sliding-panel`);
+                closeSlidePanel(slidingPanel);
+            }, 2000);
+        } else {
+            showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
+        }
+
+    } catch (error) {
+        console.error('Error autofilling form:', error);
+        showStatus(`Error autofilling: ${error.message}`, 'error');
+    }
+}
+
+function showStatus(message, type) {
+    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+    if (!statusDiv) return;
+    
+    statusDiv.style.display = 'block';
+    statusDiv.className = '';
+    
+    // Set background color based on type
+    let backgroundColor, borderColor;
+    switch (type) {
+        case 'loading':
+            backgroundColor = 'rgba(255, 193, 7, 0.3)';
+            borderColor = '#ffc107';
+            break;
+        case 'success':
+            backgroundColor = 'rgba(76, 175, 80, 0.3)';
+            borderColor = '#4caf50';
+            break;
+        case 'error':
+            backgroundColor = 'rgba(244, 67, 54, 0.3)';
+            borderColor = '#f44336';
+            break;
+        default:
+            backgroundColor = 'rgba(33, 150, 243, 0.3)';
+            borderColor = '#2196f3';
+    }
+    
+    statusDiv.style.background = backgroundColor;
+    statusDiv.style.border = `1px solid ${borderColor}`;
+    
+    if (type === 'loading') {
+        statusDiv.innerHTML = `<span style="border: 2px solid #f3f3f3; border-top: 2px solid #333; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;"></span>${message}`;
+        
+        // Add keyframes for spinner animation
+        if (!document.querySelector('#spinner-style')) {
+            const style = document.createElement('style');
+            style.id = 'spinner-style';
+            style.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    } else {
+        statusDiv.textContent = message;
+    }
+}
+
+function isValidUrl(string) {
+    try {
+        new URL(string);
+        return true;
+    } catch (_) {
+        return false;
+    }
 }
 
 // Detect forms on the page
@@ -99,7 +452,7 @@ function detectForms() {
     });
 }
 
-// Main autofill function (enhanced version of the one in popup.js)
+// Main autofill function (enhanced version)
 function autofillFormAdvanced(data) {
     console.log('Advanced autofill starting with data:', data);
     
@@ -221,55 +574,6 @@ function findFormElementAdvanced(key, value, fieldMappings) {
             if (element) return element;
         }
     }
-    
-    // 3. Try fuzzy matching with cleaned key (DISABLED - using exact matches only)
-    // const allInputs = document.querySelectorAll('input, textarea, select');
-    // for (const input of allInputs) {
-    //     const name = (input.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    //     const id = (input.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    //     const placeholder = (input.placeholder || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    //     const label = getFieldLabel(input).toLowerCase().replace(/[^a-z0-9]/g, '');
-    //     
-    //     // For boolean values, only match to checkbox/radio fields or exact matches
-    //     if (typeof value === 'boolean') {
-    //         const inputType = input.type ? input.type.toLowerCase() : '';
-    //         if (inputType === 'checkbox' || inputType === 'radio') {
-    //             if (name.includes(keyLower) || id.includes(keyLower) || 
-    //                 placeholder.includes(keyLower) || label.includes(keyLower)) {
-    //                 return input;
-    //             }
-    //         }
-    //         // Skip fuzzy matching for boolean values to prevent false matches
-    //         continue;
-    //     }
-    //     
-    //     // For zip/zipCode fields, be very specific to avoid matching business name fields
-    //     if (keyLower === 'zip' || keyLower === 'zipcode') {
-    //         // Only match to fields that are clearly zip-related
-    //         const zipRelatedTerms = ['zip', 'zipcode', 'postal', 'postcode'];
-    //         const fieldText = (name + ' ' + id + ' ' + placeholder + ' ' + label).toLowerCase();
-    //             
-    //         if (zipRelatedTerms.some(term => fieldText.includes(term))) {
-    //             return input;
-    //         }
-    //         // Skip fuzzy matching for zip fields to prevent false matches
-    //         continue;
-    //     }
-    //     
-    //     // More precise fuzzy matching - avoid bidirectional matching for short keys
-    //     if (name.includes(keyLower) || id.includes(keyLower) || 
-    //         placeholder.includes(keyLower) || label.includes(keyLower)) {
-    //         console.log(`Fuzzy match found for ${key} (${keyLower}):`, input.name || input.id || input.placeholder);
-    //         return input;
-    //     }
-    //     
-    //     // Only do bidirectional matching for longer keys (4+ characters) to avoid false matches
-    //     // This prevents short keys like 'zip' from matching longer field names
-    //     if (keyLower.length >= 4 && (keyLower.includes(name) || keyLower.includes(id))) {
-    //         console.log(`Bidirectional match found for ${key} (${keyLower}):`, input.name || input.id || input.placeholder);
-    //         return input;
-    //     }
-    // }
     
     return null;
 }
@@ -406,8 +710,6 @@ function fillSelectElementAdvanced(element, value) {
     return false;
 }
 
-
-
 // Get label text for a field
 function getFieldLabel(element) {
     // Try to find associated label
@@ -458,19 +760,20 @@ function showNotification(message, type = 'info') {
     notification.style.cssText = `
         position: fixed;
         top: 20px;
-        right: 20px;
+        left: 50%;
+        transform: translateX(-50%);
         background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
         color: white;
         padding: 15px 20px;
         border-radius: 8px;
-        z-index: 10000;
+        z-index: 10002;
         font-family: Arial, sans-serif;
         font-size: 14px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         max-width: 300px;
         word-wrap: break-word;
         opacity: 0;
-        transform: translateX(100%);
+        transform: translateX(-50%) translateY(-20px);
         transition: all 0.3s ease;
     `;
     notification.textContent = message;
@@ -480,13 +783,13 @@ function showNotification(message, type = 'info') {
     // Animate in
     setTimeout(() => {
         notification.style.opacity = '1';
-        notification.style.transform = 'translateX(0)';
+        notification.style.transform = 'translateX(-50%) translateY(0)';
     }, 10);
     
     // Remove after delay
     setTimeout(() => {
         notification.style.opacity = '0';
-        notification.style.transform = 'translateX(100%)';
+        notification.style.transform = 'translateX(-50%) translateY(-20px)';
         setTimeout(() => notification.remove(), 300);
     }, 4000);
 }
@@ -497,15 +800,6 @@ function isValidEmail(email) {
     return emailRegex.test(email);
 }
 
-function isValidUrl(string) {
-    try {
-        new URL(string);
-        return true;
-    } catch (_) {
-        return false;
-    }
-}
-
 function formatPhoneNumber(phone) {
     // Basic phone number formatting
     const cleaned = phone.replace(/\D/g, '');
@@ -514,10 +808,6 @@ function formatPhoneNumber(phone) {
     }
     return phone;
 }
-
-
-
-// Note: Message listener moved to end of file to avoid duplicates
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
@@ -550,7 +840,7 @@ observer.observe(document.body, {
     subtree: true
 });
 
-// Listen for messages from popup
+// Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('Content script received message:', request);
     
@@ -581,6 +871,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     return true; // Keep the message channel open for async response
+});
+
+// Clean up when page unloads
+window.addEventListener('beforeunload', () => {
+    stopPolling();
 });
 
 console.log('N8N Form Autofiller content script loaded'); 
