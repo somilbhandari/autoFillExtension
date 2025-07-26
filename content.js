@@ -109,15 +109,14 @@ function addFloatingInterface() {
      floatingBtn.id = `${EXTENSION_ID}-floating-btn`;
      floatingBtn.style.cssText = `
          position: fixed;
-         top: 50%;
+         bottom: 20px;
          right: 20px;
-         transform: translateY(-50%);
-                  width: 50px;
+         width: 50px;
          height: 50px;
-         background: linear-gradient(135deg, #624de3 0%, #3639a4 100%);
+         background: white;
          border-radius: 50%;
          cursor: pointer;
-         box-shadow: 0 4px 20px rgba(54, 57, 164, 0.5);
+         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
          display: flex;
          align-items: center;
          justify-content: center;
@@ -126,22 +125,24 @@ function addFloatingInterface() {
          font-weight: bold;
          transition: all 0.3s ease;
          z-index: 10001;
-         border: 2px solid rgba(98, 77, 227, 0.3);
+         border: 2px solid rgba(98, 77, 227, 0.2);
     `;
-    floatingBtn.innerHTML = '🤖';
-    floatingBtn.title = 'N8N Form Autofiller';
+    floatingBtn.innerHTML = `<img src="${chrome.runtime.getURL('icons/intellifill-icon.svg')}" style="width: 28px; height: 28px;" alt="IntelliFill">`;
+    floatingBtn.title = 'IntelliFill';
     
          // Add hover effect to button
      floatingBtn.addEventListener('mouseenter', () => {
-         floatingBtn.style.transform = 'translateY(-50%) scale(1.1)';
-         floatingBtn.style.boxShadow = '0 6px 25px rgba(54, 57, 164, 0.8)';
-         floatingBtn.style.background = 'linear-gradient(135deg, #3639a4 0%, #624de3 100%)';
+         floatingBtn.style.transform = 'scale(1.1)';
+         floatingBtn.style.boxShadow = '0 6px 25px rgba(98, 77, 227, 0.3)';
+         floatingBtn.style.background = '#f8fafc';
+         floatingBtn.style.borderColor = 'rgba(98, 77, 227, 0.4)';
      });
      
      floatingBtn.addEventListener('mouseleave', () => {
-         floatingBtn.style.transform = 'translateY(-50%) scale(1)';
-         floatingBtn.style.boxShadow = '0 4px 20px rgba(54, 57, 164, 0.5)';
-         floatingBtn.style.background = 'linear-gradient(135deg, #624de3 0%, #3639a4 100%)';
+         floatingBtn.style.transform = 'scale(1)';
+         floatingBtn.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15)';
+         floatingBtn.style.background = 'white';
+         floatingBtn.style.borderColor = 'rgba(98, 77, 227, 0.2)';
      });
     
          // Create sliding panel
@@ -149,27 +150,29 @@ function addFloatingInterface() {
      slidingPanel.id = `${EXTENSION_ID}-sliding-panel`;
      slidingPanel.style.cssText = `
          position: fixed;
-         top: 50%;
-         right: -420px;
-         transform: translateY(-50%);
+         bottom: 80px;
+         right: 20px;
          width: 400px;
          height: auto;
-         max-height: 90vh;
+         max-height: 70vh;
          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e7e3ff 100%);
-         transition: right 0.3s ease;
+         transition: all 0.3s ease;
          z-index: 10000;
          overflow-y: auto;
          padding: 15px;
          box-sizing: border-box;
-         border-radius: 15px 0 0 15px;
-         border-left: 6px solid #624de3;
+         border-radius: 15px;
+         border: 2px solid #624de3;
+         transform: translateY(100%) scale(0.9);
+         opacity: 0;
+         pointer-events: none;
      `;
     
     // Create panel content
     slidingPanel.innerHTML = `
                  <div style="background: rgba(255, 255, 255, 0.9); border-radius: 12px; padding: 16px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); color: #1f2937; border: 1px solid rgba(98, 77, 227, 0.2);">
                          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                 <h1 style="margin: 0; font-size: 18px; font-weight: 600; color: #624de3;">🤖 IntelliFill - CoverFroce Form Autofiller</h1>
+                                 <h1 style="margin: 0; font-size: 18px; font-weight: 600; color: #624de3; display: flex; align-items: center; gap: 8px;"><img src="${chrome.runtime.getURL('icons/intellifill-icon.svg')}" style="width: 24px; height: 24px;" alt="IntelliFill"> IntelliFill</h1>
                                  <button id="${EXTENSION_ID}-close-btn" style="background: none; border: none; color: #6b7280; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;">×</button>
             </div>
             
@@ -188,8 +191,8 @@ function addFloatingInterface() {
              </div>
             
                          <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                 <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: 1px solid #f59e0b; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #f59e0b; color: white;">Process Data</button>
-                                 <button id="${EXTENSION_ID}-autofill-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;" disabled>Autofill Form</button>
+                                 <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: 1px solid #f59e0b; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #f59e0b; color: white;">SuperCompute</button>
+                                 <button id="${EXTENSION_ID}-autofill-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;" disabled>SuperPaste</button>
             </div>
             
             <div id="${EXTENSION_ID}-status" style="margin-top: 15px; padding: 10px; border-radius: 8px; font-size: 13px; text-align: center; display: none;"></div>
@@ -291,12 +294,16 @@ function toggleSlidePanel(panel) {
 }
 
 function openSlidePanel(panel) {
-    panel.style.right = '0px';
+    panel.style.transform = 'translateY(0) scale(1)';
+    panel.style.opacity = '1';
+    panel.style.pointerEvents = 'auto';
     isSlideOpen = true;
 }
 
 function closeSlidePanel(panel) {
-    panel.style.right = '-420px';
+    panel.style.transform = 'translateY(100%) scale(0.9)';
+    panel.style.opacity = '0';
+    panel.style.pointerEvents = 'none';
     isSlideOpen = false;
 }
 
@@ -350,6 +357,10 @@ async function processData() {
     }
 
     try {
+        // Clear previous processed data first to avoid context issues
+        processedData = null;
+        safeStorageSet({ processedData: null });
+        
         processBtn.disabled = true;
         autofillBtn.disabled = true;
         showStatus('Processing data...', 'loading');
@@ -643,9 +654,9 @@ function autofillFormAdvanced(data) {
         'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
         'fullTimeEmployees': ['full_time_employees', 'full_time_employees_count', 'numberOfFullTimeEmployees', 'fullTimeEmployees'],
         'partTimeEmployees': ['part_time_employees', 'part_time_employees_count', 'numberOfPartTimeEmployees', 'partTimeEmployees'],
-        'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate'],
-        'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate'],
-        'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType'],
+        'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate', 'insurance_start_date', 'start_date', 'coverage_start_date', 'policy_start_date', 'coverage_effective_date'],
+        'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
+        'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType', 'legal_entity', 'business_type', 'business_entity_type'],
         'totalPayroll': ['total_payroll', 'payroll_total', 'payrollTotal', 'totalPayroll', 'totalEmployeePayroll'],
 
         'totalArea': ['total_area', 'total_square_feet', 'total_square_meters', 'total_square_feet_area', 'total_square_meters_area', 'totalArea'],
@@ -684,6 +695,45 @@ function autofillFormAdvanced(data) {
             }
         } else {
             console.log(`No element found for ${key}`);
+        }
+    }
+    
+    // Additional pass: Look for insurance date fields that might not have been mapped
+    const allDateInputs = document.querySelectorAll('input[type="date"]');
+    for (const dateInput of allDateInputs) {
+        const fieldName = (dateInput.name || dateInput.id || '').toLowerCase();
+        const isInsuranceDate = fieldName.includes('insurance') || fieldName.includes('coverage') || fieldName.includes('policy');
+        const isEffective = fieldName.includes('effective') || fieldName.includes('start') || 
+                           fieldName.includes('begin') || fieldName.includes('commence');
+        const isExpiry = fieldName.includes('expir') || fieldName.includes('end') || 
+                        fieldName.includes('termination') || fieldName.includes('finish');
+        
+        if (isInsuranceDate && (isEffective || isExpiry) && !dateInput.value) {
+            let targetDate;
+            
+            if (isEffective) {
+                // Set effective date to tomorrow
+                targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + 1);
+            } else if (isExpiry) {
+                // Set expiry date to tomorrow + 1 year
+                targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + 1);
+                targetDate.setFullYear(targetDate.getFullYear() + 1);
+            }
+            
+            if (targetDate) {
+                const year = targetDate.getFullYear();
+                const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+                const day = String(targetDate.getDate()).padStart(2, '0');
+                dateInput.value = `${year}-${month}-${day}`;
+                
+                // Trigger events
+                dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+                dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+                highlightField(dateInput);
+                filledFields++;
+            }
         }
     }
     
@@ -869,11 +919,33 @@ function fillCheckboxAdvanced(element, value) {
 
 function fillDateFieldAdvanced(element, value) {
     try {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
+        // Check if this is an insurance effective or expiry date field
+        const fieldName = (element.name || element.id || '').toLowerCase();
+        const isInsuranceEffective = fieldName.includes('effective') || fieldName.includes('start') || 
+                                    fieldName.includes('begin') || fieldName.includes('commence');
+        const isInsuranceExpiry = fieldName.includes('expir') || fieldName.includes('end') || 
+                                 fieldName.includes('termination') || fieldName.includes('finish');
+        
+        let targetDate;
+        
+        if (isInsuranceEffective) {
+            // For insurance effective date, use the very next date (tomorrow)
+            targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() + 1);
+        } else if (isInsuranceExpiry) {
+            // For insurance expiry date, use effective date + 1 year (tomorrow + 1 year)
+            targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() + 1); // Start with tomorrow
+            targetDate.setFullYear(targetDate.getFullYear() + 1); // Add one year
+        } else {
+            // For other dates, use the provided value
+            targetDate = new Date(value);
+        }
+        
+        if (!isNaN(targetDate.getTime())) {
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
             element.value = `${year}-${month}-${day}`;
             return true;
         }
@@ -887,12 +959,34 @@ function fillSelectElementAdvanced(element, value) {
     const options = element.querySelectorAll('option');
     const valueStr = value.toString().toLowerCase();
     
+    // First try exact matches
     for (const option of options) {
         const optionValue = option.value.toLowerCase();
-        const optionText = option.textContent.toLowerCase();
+        const optionText = option.textContent.toLowerCase().trim();
         
-        if (optionValue === valueStr || optionText === valueStr ||
-            optionValue.includes(valueStr) || optionText.includes(valueStr)) {
+        if (optionValue === valueStr || optionText === valueStr) {
+            element.value = option.value;
+            return true;
+        }
+    }
+    
+    // Then try partial matches for business entity types
+    for (const option of options) {
+        const optionValue = option.value.toLowerCase();
+        const optionText = option.textContent.toLowerCase().trim();
+        
+        // Special handling for legal entity types
+        if (valueStr === 'association') {
+            if (optionValue.includes('association') || optionText.includes('association') ||
+                optionValue.includes('assoc') || optionText.includes('assoc')) {
+                element.value = option.value;
+                return true;
+            }
+        }
+        
+        // General partial matching
+        if (optionValue.includes(valueStr) || optionText.includes(valueStr) ||
+            valueStr.includes(optionValue) || valueStr.includes(optionText)) {
             element.value = option.value;
             return true;
         }
