@@ -379,11 +379,25 @@ async function processData() {
             params.push(`data=${encodeURIComponent(data)}`);
         }
         
-        if (params.length > 0) {
-            webhookUrl += '?' + params.join('&');
+        // Prepare request body for POST
+        const requestBody = {};
+        
+        if (url) {
+            // Normalize the URL (add https:// if needed)
+            const normalizedUrl = normalizeUrl(url);
+            requestBody.url = normalizedUrl;
         }
+        
+        if (data) {
+            requestBody.data = data;
+        }
+        
         const response = await fetch(webhookUrl, {
-            method: 'GET'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
@@ -780,6 +794,11 @@ function findFormElementAdvanced(key, value, fieldMappings) {
     let element = null;
     const keyLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
     
+    // Helper function to check if element is part of the extension panel
+    function isExtensionElement(el) {
+        return el.closest(`#${EXTENSION_ID}-container`) !== null;
+    }
+    
     // 1. Try exact matches first
     const exactSelectors = [
         `input[name="${key}"]`,
@@ -792,7 +811,7 @@ function findFormElementAdvanced(key, value, fieldMappings) {
     
     for (const selector of exactSelectors) {
         element = document.querySelector(selector);
-        if (element) return element;
+        if (element && !isExtensionElement(element)) return element;
     }
     
     // 2. Try mapped field names
@@ -811,7 +830,7 @@ function findFormElementAdvanced(key, value, fieldMappings) {
         
         for (const selector of mappedSelectors) {
             element = document.querySelector(selector);
-            if (element) return element;
+            if (element && !isExtensionElement(element)) return element;
         }
     }
     
