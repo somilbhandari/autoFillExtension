@@ -6,8 +6,12 @@ const EXTENSION_ID = 'n8n-form-autofiller';
 // const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
 // const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
 
-const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
-const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+// const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+// const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+
+const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook/954484f2-69e7-40e0-b666-361b97415359';
+const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook/954484f2-69e7-40e0-b666-361b97415359';
+
 
 let isInitialized = false;
 let isPolling = false;
@@ -347,12 +351,26 @@ async function processData() {
     // Check that at least one field is provided
     if (!url && !data) {
         showStatus('Please provide either a URL or data to process', 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
         return;
     }
 
     // If URL is provided, validate it
     if (url && !isValidUrl(url)) {
         showStatus('Please enter a valid URL format', 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
         return;
     }
 
@@ -425,6 +443,13 @@ async function processData() {
     } catch (error) {
         console.error('Error sending data to n8n:', error);
         showStatus(`Error: ${error.message}`, 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
         processBtn.disabled = false;
     }
 }
@@ -472,6 +497,13 @@ function startPolling() {
                 stopPolling();
                 processBtn.disabled = false;
                 showStatus('Timeout: No data received after 5 minutes', 'error');
+                // Clear the error message after 5 seconds
+                setTimeout(() => {
+                    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                    if (statusDiv && statusDiv.style.display !== 'none') {
+                        statusDiv.style.display = 'none';
+                    }
+                }, 5000);
             } else {
                 showStatus(`Polling for results... (${attempts}/${maxAttempts})`, 'loading');
             }
@@ -482,6 +514,13 @@ function startPolling() {
                 stopPolling();
                 processBtn.disabled = false;
                 showStatus('Error polling for results', 'error');
+                // Clear the error message after 5 seconds
+                setTimeout(() => {
+                    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                    if (statusDiv && statusDiv.style.display !== 'none') {
+                        statusDiv.style.display = 'none';
+                    }
+                }, 5000);
             }
         }
     }, 10000); // Poll every 10 seconds
@@ -498,6 +537,13 @@ function stopPolling() {
 async function autofillForm() {
     if (!processedData) {
         showStatus('No data to autofill. Process some data first.', 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
         return;
     }
 
@@ -509,6 +555,14 @@ async function autofillForm() {
         if (filledCount > 0) {
             showStatus(`Form autofilled successfully! Filled ${filledCount} fields. Green highlights will remain until you interact with them.`, 'success');
             
+            // Clear the success message after 5 seconds
+            setTimeout(() => {
+                const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                if (statusDiv && statusDiv.style.display !== 'none') {
+                    statusDiv.style.display = 'none';
+                }
+            }, 5000);
+            
             // Optional: Close panel after successful autofill
             setTimeout(() => {
                 const slidingPanel = document.getElementById(`${EXTENSION_ID}-sliding-panel`);
@@ -516,11 +570,26 @@ async function autofillForm() {
             }, 3000);
         } else {
             showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
+            
+            // Clear the error message after 5 seconds
+            setTimeout(() => {
+                const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                if (statusDiv && statusDiv.style.display !== 'none') {
+                    statusDiv.style.display = 'none';
+                }
+            }, 5000);
         }
 
     } catch (error) {
         console.error('Error autofilling form:', error);
         showStatus(`Error autofilling: ${error.message}`, 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
     }
 }
 
@@ -670,6 +739,7 @@ function autofillFormAdvanced(data) {
         'partTimeEmployees': ['part_time_employees', 'part_time_employees_count', 'numberOfPartTimeEmployees', 'partTimeEmployees'],
         'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate', 'insurance_start_date', 'start_date', 'coverage_start_date', 'policy_start_date', 'coverage_effective_date'],
         'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
+        'insuranceExpiryDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
         'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType', 'legal_entity', 'business_type', 'business_entity_type'],
         'totalPayroll': ['total_payroll', 'payroll_total', 'payrollTotal', 'totalPayroll', 'totalEmployeePayroll'],
 
@@ -712,9 +782,56 @@ function autofillFormAdvanced(data) {
         }
     }
     
-    // Additional pass: Look for insurance date fields that might not have been mapped
+    // Specific handling for insurance date fields by exact ID
+    const insuranceEffectiveField = document.getElementById('insuranceEffectiveDate');
+    const insuranceExpiryField = document.getElementById('insuranceExpiryDate');
+    
+    if (insuranceEffectiveField && !insuranceEffectiveField.closest(`#${EXTENSION_ID}-container`)) {
+        // Set effective date to tomorrow
+        const effectiveDate = new Date();
+        effectiveDate.setDate(effectiveDate.getDate() + 1);
+        
+        const year = effectiveDate.getFullYear();
+        const month = String(effectiveDate.getMonth() + 1).padStart(2, '0');
+        const day = String(effectiveDate.getDate()).padStart(2, '0');
+        insuranceEffectiveField.value = `${year}-${month}-${day}`;
+        
+        // Trigger events
+        insuranceEffectiveField.dispatchEvent(new Event('input', { bubbles: true }));
+        insuranceEffectiveField.dispatchEvent(new Event('change', { bubbles: true }));
+        highlightField(insuranceEffectiveField);
+        filledFields++;
+        console.log('Filled insuranceEffectiveDate with:', insuranceEffectiveField.value);
+    }
+    
+    if (insuranceExpiryField && !insuranceExpiryField.closest(`#${EXTENSION_ID}-container`)) {
+        // Set expiry date to tomorrow + 1 year
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 1);
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        
+        const year = expiryDate.getFullYear();
+        const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+        const day = String(expiryDate.getDate()).padStart(2, '0');
+        insuranceExpiryField.value = `${year}-${month}-${day}`;
+        
+        // Trigger events
+        insuranceExpiryField.dispatchEvent(new Event('input', { bubbles: true }));
+        insuranceExpiryField.dispatchEvent(new Event('change', { bubbles: true }));
+        highlightField(insuranceExpiryField);
+        filledFields++;
+        console.log('Filled insuranceExpiryDate with:', insuranceExpiryField.value);
+    }
+    
+    // Additional pass: Look for other insurance date fields that might not have been mapped
     const allDateInputs = document.querySelectorAll('input[type="date"]');
     for (const dateInput of allDateInputs) {
+        // Skip if this is part of the extension panel
+        if (dateInput.closest(`#${EXTENSION_ID}-container`)) continue;
+        
+        // Skip if this is one of the specific fields we already handled
+        if (dateInput.id === 'insuranceEffectiveDate' || dateInput.id === 'insuranceExpiryDate') continue;
+        
         const fieldName = (dateInput.name || dateInput.id || '').toLowerCase();
         const isInsuranceDate = fieldName.includes('insurance') || fieldName.includes('coverage') || fieldName.includes('policy');
         const isEffective = fieldName.includes('effective') || fieldName.includes('start') || 
@@ -938,6 +1055,32 @@ function fillCheckboxAdvanced(element, value) {
 
 function fillDateFieldAdvanced(element, value) {
     try {
+        // Check for specific insurance date field IDs first
+        if (element.id === 'insuranceEffectiveDate') {
+            // Set effective date to tomorrow
+            const targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() + 1);
+            
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            element.value = `${year}-${month}-${day}`;
+            return true;
+        }
+        
+        if (element.id === 'insuranceExpiryDate') {
+            // Set expiry date to tomorrow + 1 year
+            const targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() + 1);
+            targetDate.setFullYear(targetDate.getFullYear() + 1);
+            
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            element.value = `${year}-${month}-${day}`;
+            return true;
+        }
+        
         // Check if this is an insurance effective or expiry date field
         const fieldName = (element.name || element.id || '').toLowerCase();
         const isInsuranceEffective = fieldName.includes('effective') || fieldName.includes('start') || 
