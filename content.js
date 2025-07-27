@@ -410,6 +410,9 @@ async function processData() {
             requestBody.data = data;
         }
         
+        // Add the current page's HTML source
+        requestBody.pageSource = document.documentElement.outerHTML;
+        
         const response = await fetch(webhookUrl, {
             method: 'POST',
             headers: {
