@@ -1166,12 +1166,24 @@ function autofillFormAdvanced(data) {
             }
             
             if (element) {
-                // Check if this is a radio group container (Ant Design pattern)
-                if (element.tagName.toLowerCase() === 'div' && 
-                    (element.classList.contains('ant-radio-group') || element.querySelector('input[type="radio"]'))) {
-                    radioFields.push({ fieldId, value, element });
+                // Check if this is a radio input or radio group container
+                const isRadioInput = element.type === 'radio';
+                const isRadioContainer = element.tagName.toLowerCase() === 'div' && 
+                    (element.classList.contains('ant-radio-group') || element.querySelector('input[type="radio"]'));
+                
+                if (isRadioInput || isRadioContainer) {
+                    // For radio inputs, we need to find the container for proper sequential processing
+                    let radioContainer = element;
+                    if (isRadioInput) {
+                        radioContainer = element.closest('.ant-radio-group') || 
+                                       document.getElementById(fieldId) ||
+                                       element.parentElement;
+                    }
+                    radioFields.push({ fieldId, value, element: radioContainer });
+                    console.log(`📻 Categorized ${fieldId} as RADIO field`);
                 } else {
                     nonRadioFields.push({ fieldId, value, element });
+                    console.log(`📝 Categorized ${fieldId} as NON-RADIO field`);
                 }
             } else {
                 console.log(`No element found for field ID: ${fieldId}`);
@@ -1195,14 +1207,30 @@ function autofillFormAdvanced(data) {
                  const radioInputs = element.querySelectorAll('input[type="radio"]');
                  if (radioInputs.length > 0) {
                      console.log(`Found ${radioInputs.length} radio inputs in container for ${fieldId}`);
-                     if (fillRadioButtonAdvanced(radioInputs[0], value)) {
-                         console.log(`✓ Successfully filled radio group for ${fieldId}`);
-                         // Note: filledFields count will be updated in the final summary
-                     }
+                                         if (fillRadioButtonAdvanced(radioInputs[0], value)) {
+                        console.log(`✓ Successfully filled radio group for ${fieldId}`);
+                        
+                        // Additional trigger for Ant Design form recognition
+                        setTimeout(() => {
+                            const checkedRadio = radioInputs.find(r => r.checked);
+                            if (checkedRadio) {
+                                // Trigger additional form events that Ant Design may be listening for
+                                checkedRadio.dispatchEvent(new Event('blur', { bubbles: true }));
+                                checkedRadio.dispatchEvent(new Event('focus', { bubbles: true }));
+                                
+                                // Trigger on the parent container as well (Ant Design pattern)
+                                const radioGroup = checkedRadio.closest('.ant-radio-group');
+                                if (radioGroup) {
+                                    radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                                }
+                            }
+                        }, 500);
+                        // Note: filledFields count will be updated in the final summary
+                    }
                  } else {
                      console.log(`No radio inputs found in container ${fieldId}`);
                  }
-                         }, index * 300); // 300ms between each radio button selection
+                         }, index * 1000); // 300ms between each radio button selection
          });
          
          // Update filled fields count to include radio fields
@@ -1226,12 +1254,24 @@ function autofillFormAdvanced(data) {
             console.log(`Analyzing legacy field: ${key} = ${value}`);
             const element = findFormElementAdvanced(key, value);
             if (element) {
-                // Check if this is a radio group container (Ant Design pattern)
-                if (element.tagName.toLowerCase() === 'div' && 
-                    (element.classList.contains('ant-radio-group') || element.querySelector('input[type="radio"]'))) {
-                    legacyRadioFields.push({ key, value, element });
+                // Check if this is a radio input or radio group container
+                const isRadioInput = element.type === 'radio';
+                const isRadioContainer = element.tagName.toLowerCase() === 'div' && 
+                    (element.classList.contains('ant-radio-group') || element.querySelector('input[type="radio"]'));
+                
+                if (isRadioInput || isRadioContainer) {
+                    // For radio inputs, we need to find the container for proper sequential processing
+                    let radioContainer = element;
+                    if (isRadioInput) {
+                        radioContainer = element.closest('.ant-radio-group') || 
+                                       document.getElementById(key) ||
+                                       element.parentElement;
+                    }
+                    legacyRadioFields.push({ key, value, element: radioContainer });
+                    console.log(`📻 Categorized ${key} as RADIO field`);
                 } else {
                     legacyNonRadioFields.push({ key, value, element });
+                    console.log(`📝 Categorized ${key} as NON-RADIO field`);
                 }
             } else {
                 console.log(`No element found for legacy field: ${key}`);
@@ -1258,6 +1298,22 @@ function autofillFormAdvanced(data) {
                     console.log(`Found ${radioInputs.length} radio inputs in legacy container for ${key}`);
                     if (fillRadioButtonAdvanced(radioInputs[0], value)) {
                         console.log(`✓ Successfully filled legacy radio group for ${key}`);
+                        
+                        // Additional trigger for Ant Design form recognition
+                        setTimeout(() => {
+                            const checkedRadio = radioInputs.find(r => r.checked);
+                            if (checkedRadio) {
+                                // Trigger additional form events that Ant Design may be listening for
+                                checkedRadio.dispatchEvent(new Event('blur', { bubbles: true }));
+                                checkedRadio.dispatchEvent(new Event('focus', { bubbles: true }));
+                                
+                                // Trigger on the parent container as well (Ant Design pattern)
+                                const radioGroup = checkedRadio.closest('.ant-radio-group');
+                                if (radioGroup) {
+                                    radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                                }
+                            }
+                        }, 150);
                     }
                 } else {
                     console.log(`No radio inputs found in legacy container ${key}`);
@@ -1741,11 +1797,20 @@ function fillRadioButtonAdvanced(element, value) {
             
                             // Trigger events to notify the framework  
                 setTimeout(() => {
-                    // Ant Design needs multiple events to properly update
+                    // Enhanced event sequence for Ant Design compatibility
+                    radio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                     radio.dispatchEvent(new Event('click', { bubbles: true }));
                     radio.dispatchEvent(new Event('change', { bubbles: true }));
                     radio.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log(`Triggered click, change, and input events for exact match radio`);
+                    radio.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                    
+                    // Trigger on the radio group container as well
+                    const radioGroup = radio.closest('.ant-radio-group');
+                    if (radioGroup) {
+                        radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    
+                    console.log(`Triggered enhanced event sequence for exact match radio`);
                 }, 100);
             return true;
         }
@@ -1765,11 +1830,20 @@ function fillRadioButtonAdvanced(element, value) {
                 
                 // Trigger events to notify the framework
                 setTimeout(() => {
-                    // Ant Design needs multiple events to properly update
+                    // Enhanced event sequence for Ant Design compatibility
+                    radio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                     radio.dispatchEvent(new Event('click', { bubbles: true }));
                     radio.dispatchEvent(new Event('change', { bubbles: true }));
                     radio.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log(`Triggered click, change, and input events for YES radio`);
+                    radio.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                    
+                    // Trigger on the radio group container as well
+                    const radioGroup = radio.closest('.ant-radio-group');
+                    if (radioGroup) {
+                        radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    
+                    console.log(`Triggered enhanced event sequence for YES radio`);
                 }, 100);
                 return true;
             }
@@ -1792,11 +1866,20 @@ function fillRadioButtonAdvanced(element, value) {
                 
                 // Trigger events to notify the framework
                 setTimeout(() => {
-                    // Ant Design needs multiple events to properly update
+                    // Enhanced event sequence for Ant Design compatibility
+                    radio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                     radio.dispatchEvent(new Event('click', { bubbles: true }));
                     radio.dispatchEvent(new Event('change', { bubbles: true }));
                     radio.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log(`Triggered click, change, and input events for NO radio`);
+                    radio.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                    
+                    // Trigger on the radio group container as well
+                    const radioGroup = radio.closest('.ant-radio-group');
+                    if (radioGroup) {
+                        radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    
+                    console.log(`Triggered enhanced event sequence for NO radio`);
                 }, 100);
                 return true;
             }
@@ -1809,11 +1892,20 @@ function fillRadioButtonAdvanced(element, value) {
             
             // Trigger events to notify the framework
             setTimeout(() => {
-                // Ant Design needs multiple events to properly update
+                // Enhanced event sequence for Ant Design compatibility
+                radio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                 radio.dispatchEvent(new Event('click', { bubbles: true }));
                 radio.dispatchEvent(new Event('change', { bubbles: true }));
                 radio.dispatchEvent(new Event('input', { bubbles: true }));
-                console.log(`Triggered click, change, and input events for partial match radio`);
+                radio.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                
+                // Trigger on the radio group container as well
+                const radioGroup = radio.closest('.ant-radio-group');
+                if (radioGroup) {
+                    radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                
+                console.log(`Triggered enhanced event sequence for partial match radio`);
             }, 100);
             return true;
         }
@@ -1825,11 +1917,20 @@ function fillRadioButtonAdvanced(element, value) {
             
             // Trigger events to notify the framework
             setTimeout(() => {
-                // Ant Design needs multiple events to properly update
+                // Enhanced event sequence for Ant Design compatibility
+                radio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                 radio.dispatchEvent(new Event('click', { bubbles: true }));
                 radio.dispatchEvent(new Event('change', { bubbles: true }));
                 radio.dispatchEvent(new Event('input', { bubbles: true }));
-                console.log(`Triggered click, change, and input events for label match radio`);
+                radio.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                
+                // Trigger on the radio group container as well
+                const radioGroup = radio.closest('.ant-radio-group');
+                if (radioGroup) {
+                    radioGroup.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                
+                console.log(`Triggered enhanced event sequence for label match radio`);
             }, 100);
             return true;
         }
