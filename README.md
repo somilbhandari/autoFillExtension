@@ -227,14 +227,19 @@ autofillExtension/
 3. Click refresh button on the extension
 4. Test your changes
 
-### Adding New Field Mappings
-Edit the `fieldMappings` object in `content.js`:
+### Field Matching
+The extension now uses direct field ID matching. The API should return a JSON structure with exact field IDs:
 
 ```javascript
-const fieldMappings = {
-    'yourField': ['field1', 'field2', 'field3'],
-    // Add more mappings here
-};
+{
+  "message": {
+    "content": {
+      "fieldId": "value",
+      "application_SOME_QN-12345": "Yes",
+      "businessName": "Company Name"
+    }
+  }
+}
 ```
 
 ## Security Notes

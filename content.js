@@ -9,6 +9,10 @@ const EXTENSION_ID = 'n8n-form-autofiller';
 const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
 const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
 
+// const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+// const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+
+
 // const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/8d59f19b-8c40-4359-ba67-3551a75384b3';
 // const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/8d59f19b-8c40-4359-ba67-3551a75384b3';
 
@@ -1101,16 +1105,31 @@ function autofillFormAdvanced(data) {
     let fieldMappings = null;
     
     // Check if we have the new message.content structure
-    if (data && data.message && data.message.content) {
+    let contentData = null;
+    
+    // Handle array response structure
+    if (Array.isArray(data) && data.length > 0 && data[0].message && data[0].message.content) {
+        console.log('Using new array[0].message.content structure for direct field mapping');
+        contentData = data[0].message.content;
+    } 
+    // Handle direct object structure
+    else if (data && data.message && data.message.content) {
         console.log('Using new message.content structure for direct field mapping');
-        fieldMappings = data.message.content;
+        contentData = data.message.content;
+    }
+    
+    if (contentData) {
+        fieldMappings = contentData;
         console.log('Field mappings:', fieldMappings);
         
-        // Process each field ID to value mapping
+        // First pass: collect all radio button fields for sequential processing
+        const radioFields = [];
+        const nonRadioFields = [];
+        
         for (const [fieldId, value] of Object.entries(fieldMappings)) {
             if (value === null || value === undefined || value === '') continue;
             
-            console.log(`Trying to fill field ID: ${fieldId} = ${value}`);
+            console.log(`Analyzing field ID: ${fieldId} = ${value}`);
             
             // Find element by exact ID first
             let element = document.getElementById(fieldId);
@@ -1120,13 +1139,23 @@ function autofillFormAdvanced(data) {
                 element = document.querySelector(`input[name="${fieldId}"], textarea[name="${fieldId}"], select[name="${fieldId}"]`);
             }
             
-            // Special handling for radio buttons - if we found a radio, we need to handle the group
+            // Special handling for radio buttons
             if (!element) {
                 // Try to find radio button group by name (common case)
                 const radioGroup = document.querySelectorAll(`input[type="radio"][name="${fieldId}"]`);
                 if (radioGroup.length > 0) {
                     element = radioGroup[0]; // Use first radio as representative
                     console.log(`Found radio group for ${fieldId} with ${radioGroup.length} options`);
+                } else {
+                    // Try to find radio buttons within a container with the field ID (Ant Design pattern)
+                    const radioContainer = document.getElementById(fieldId);
+                    if (radioContainer) {
+                        const containerRadios = radioContainer.querySelectorAll('input[type="radio"]');
+                        if (containerRadios.length > 0) {
+                            element = containerRadios[0]; // Use first radio as representative
+                            console.log(`Found radio container for ${fieldId} with ${containerRadios.length} options`);
+                        }
+                    }
                 }
             }
             
@@ -1137,14 +1166,47 @@ function autofillFormAdvanced(data) {
             }
             
             if (element) {
-                console.log(`Found element for ${fieldId}:`, element.tagName, element.type || 'no-type');
-                if (fillField(element, value)) {
-                    filledFields++;
+                // Check if this is a radio group container (Ant Design pattern)
+                if (element.tagName.toLowerCase() === 'div' && 
+                    (element.classList.contains('ant-radio-group') || element.querySelector('input[type="radio"]'))) {
+                    radioFields.push({ fieldId, value, element });
+                } else {
+                    nonRadioFields.push({ fieldId, value, element });
                 }
             } else {
                 console.log(`No element found for field ID: ${fieldId}`);
             }
         }
+        
+        // Process non-radio fields immediately
+        for (const { fieldId, value, element } of nonRadioFields) {
+            console.log(`Processing non-radio field: ${fieldId}`);
+            if (fillField(element, value)) {
+                filledFields++;
+            }
+        }
+        
+        // Process radio fields sequentially with proper delays
+        radioFields.forEach(({ fieldId, value, element }, index) => {
+            setTimeout(() => {
+                                 console.log(`Processing radio field ${index + 1}/${radioFields.length}: ${fieldId} = ${value}`);
+                 
+                 // Find radio inputs within the container and use fillRadioButtonAdvanced
+                 const radioInputs = element.querySelectorAll('input[type="radio"]');
+                 if (radioInputs.length > 0) {
+                     console.log(`Found ${radioInputs.length} radio inputs in container for ${fieldId}`);
+                     if (fillRadioButtonAdvanced(radioInputs[0], value)) {
+                         console.log(`✓ Successfully filled radio group for ${fieldId}`);
+                         // Note: filledFields count will be updated in the final summary
+                     }
+                 } else {
+                     console.log(`No radio inputs found in container ${fieldId}`);
+                 }
+                         }, index * 300); // 300ms between each radio button selection
+         });
+         
+         // Update filled fields count to include radio fields
+         filledFields += radioFields.length;
     } else {
         console.log('Using legacy data structure with field mapping');
         
@@ -1152,64 +1214,59 @@ function autofillFormAdvanced(data) {
         const flattenedData = flattenData(data);
         console.log('Flattened data:', flattenedData);
         
-        const legacyFieldMappings = {
-            // Business information - direct field mappings
-            'businessName': ['businessname', 'business_name', 'company_name', 'business', 'company', 'organization'],
-            'doingBusinessAs': ['dba', 'dba_name', 'doing_business_as', 'trade_name', 'dbaname'],
-            'businessWebsite': ['website', 'url', 'website_url', 'site', 'homepage', 'web_site', 'businessWebsite', 'business_website'],
-            'natureOfOperations': ['description', 'business_description', 'operations', 'nature_of_business', 'business_type', 'type_of_business'],
-            'naics': ['naics_code', 'naics', 'industry_code', 'sic_code'],
-            'fein': ['fein', 'ein', 'employer_id', 'tax_id', 'federal_tax_id'],
-            'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income', 'annualRevenue', 'annualSales'],
-            'yearsOfManagementExperience': ['experience', 'management_experience', 'years_experience', 'management_years','yearsOfExperience'],
-            'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year', 'businessYearOfFounding'],
-            'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
-            'fullTimeEmployees': ['full_time_employees', 'full_time_employees_count', 'numberOfFullTimeEmployees', 'fullTimeEmployees'],
-            'partTimeEmployees': ['part_time_employees', 'part_time_employees_count', 'numberOfPartTimeEmployees', 'partTimeEmployees'],
-            'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate', 'insurance_start_date', 'start_date', 'coverage_start_date', 'policy_start_date', 'coverage_effective_date'],
-            'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
-            'insuranceExpiryDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
-            'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType', 'legal_entity', 'business_type', 'business_entity_type'],
-            'totalPayroll': ['total_payroll', 'payroll_total', 'payrollTotal', 'totalPayroll', 'totalEmployeePayroll'],
-
-            'totalArea': ['total_area', 'total_square_feet', 'total_square_meters', 'total_square_feet_area', 'total_square_meters_area', 'totalArea'],
-            'areaOccupied': ['area_occupied', 'occupied_area', 'occupied_square_feet', 'occupied_square_meters', 'occupied_square_feet_area', 'occupied_square_meters_area', 'areaOccupied'],
-            'areaOccupiedByOthers': ['area_occupied_by_others', 'occupied_area_by_others', 'occupied_square_feet_by_others', 'occupied_square_meters_by_others', 'occupied_square_feet_area_by_others', 'occupied_square_meters_area_by_others', 'areaOccupiedByOthers'],
-            'totalStories': ['total_stories', 'stories', 'story_count', 'total_story_count', 'totalStories'],
-            'yearBuilt': ['year_built', 'built_year', 'yearBuilt'],
-            'roofUpdateYear': ['roof_update_year', 'roof_update_year', 'roofUpdateYear'],
-            'sprinkleredPercentage': ['sprinklered_percentage', 'sprinkleredPercentage'],
-            'buildingCoverage': ['building_coverage', 'buildingCoverage'],
-            'businessPersonalPropertyCoverage': ['business_personal_property_coverage', 'businessPersonalPropertyCoverage'],
-
-            // Contact information - from contacts arraoy
-            'phone': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone', 'business_phone', 'office_phone'],
-            'email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email', 'business_email'],
-            'fax': ['fax', 'fax_number', 'fax_phone', 'facsimile'],
-            
-            // Address fields - from mailingAddress object
-            'street': ['address', 'street', 'address1', 'street_address', 'mailing_address', 'business_address'],
-            'city': ['city', 'town', 'locality', 'business_city'],
-            'state': ['state', 'province', 'region', 'business_state'],
-            'zip': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
-            'zipCode': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
-        };
+        // No complex field mappings needed anymore - using direct field ID matching
         
-        // Process each field in the flattened data
+        // First pass: collect all radio button fields for sequential processing (legacy version)
+        const legacyRadioFields = [];
+        const legacyNonRadioFields = [];
+        
         for (const [key, value] of Object.entries(flattenedData)) {
             if (value === null || value === undefined || value === '') continue;
             
-            console.log(`Trying to fill field: ${key} = ${value}`);
-            const element = findFormElementAdvanced(key, value, legacyFieldMappings);
+            console.log(`Analyzing legacy field: ${key} = ${value}`);
+            const element = findFormElementAdvanced(key, value);
             if (element) {
-                console.log(`Found element for ${key}:`, element.name || element.id || element.placeholder);
-                if (fillField(element, value)) {
-                    filledFields++;
+                // Check if this is a radio group container (Ant Design pattern)
+                if (element.tagName.toLowerCase() === 'div' && 
+                    (element.classList.contains('ant-radio-group') || element.querySelector('input[type="radio"]'))) {
+                    legacyRadioFields.push({ key, value, element });
+                } else {
+                    legacyNonRadioFields.push({ key, value, element });
                 }
             } else {
-                console.log(`No element found for ${key}`);
+                console.log(`No element found for legacy field: ${key}`);
             }
         }
+        
+        // Process non-radio fields immediately (legacy)
+        for (const { key, value, element } of legacyNonRadioFields) {
+            console.log(`Processing legacy non-radio field: ${key}`);
+            console.log(`Found element for ${key}:`, element.name || element.id || element.placeholder);
+            if (fillField(element, value)) {
+                filledFields++;
+            }
+        }
+        
+        // Process radio fields sequentially with proper delays (legacy)
+        legacyRadioFields.forEach(({ key, value, element }, index) => {
+            setTimeout(() => {
+                console.log(`Processing legacy radio field ${index + 1}/${legacyRadioFields.length}: ${key} = ${value}`);
+                
+                // Find radio inputs within the container and use fillRadioButtonAdvanced
+                const radioInputs = element.querySelectorAll('input[type="radio"]');
+                if (radioInputs.length > 0) {
+                    console.log(`Found ${radioInputs.length} radio inputs in legacy container for ${key}`);
+                    if (fillRadioButtonAdvanced(radioInputs[0], value)) {
+                        console.log(`✓ Successfully filled legacy radio group for ${key}`);
+                    }
+                } else {
+                    console.log(`No radio inputs found in legacy container ${key}`);
+                }
+            }, index * 300); // 300ms between each radio button selection
+        });
+        
+        // Update filled fields count to include radio fields
+        filledFields += legacyRadioFields.length;
     }
     
     // Specific handling for insurance date fields by exact ID
@@ -1398,11 +1455,8 @@ function flattenData(obj, prefix = '') {
     return flattened;
 }
 
-// Enhanced function to find form elements
-function findFormElementAdvanced(key, value, fieldMappings) {
-    let element = null;
-    const keyLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
+// Simplified function to find form elements by exact ID/name matching
+function findFormElementAdvanced(key, value) {
     // Helper function to check if element is part of the extension panel
     function isExtensionElement(el) {
         return el.closest(`#${EXTENSION_ID}-container`) !== null;
@@ -1419,48 +1473,30 @@ function findFormElementAdvanced(key, value, fieldMappings) {
     ];
     
     for (const selector of exactSelectors) {
-        element = document.querySelector(selector);
+        const element = document.querySelector(selector);
         if (element && !isExtensionElement(element)) return element;
     }
     
-    // 1.5. Try radio buttons specifically
+    // 2. Try radio buttons specifically by name
     const radioSelector = `input[type="radio"][name="${key}"]`;
     const radioGroup = document.querySelectorAll(radioSelector);
     if (radioGroup.length > 0) {
         const firstRadio = Array.from(radioGroup).find(r => !isExtensionElement(r));
         if (firstRadio) {
-            console.log(`Found radio group for ${key} in legacy mapping`);
+            console.log(`Found radio group for ${key}`);
             return firstRadio;
         }
     }
     
-    // 2. Try mapped field names
-    const mappedFields = fieldMappings[key] || [];
-    for (const mappedField of mappedFields) {
-        const mappedSelectors = [
-            `input[name="${mappedField}"]`,
-            `input[id="${mappedField}"]`,
-            `input[name*="${mappedField}"]`,
-            `input[id*="${mappedField}"]`,
-            `textarea[name="${mappedField}"]`,
-            `textarea[id="${mappedField}"]`,
-            `select[name="${mappedField}"]`,
-            `select[id="${mappedField}"]`
-        ];
-        
-        for (const selector of mappedSelectors) {
-            element = document.querySelector(selector);
-            if (element && !isExtensionElement(element)) return element;
-        }
-        
-        // Also try radio buttons for mapped fields
-        const mappedRadioSelector = `input[type="radio"][name="${mappedField}"]`;
-        const mappedRadioGroup = document.querySelectorAll(mappedRadioSelector);
-        if (mappedRadioGroup.length > 0) {
-            const firstMappedRadio = Array.from(mappedRadioGroup).find(r => !isExtensionElement(r));
-            if (firstMappedRadio) {
-                console.log(`Found radio group for mapped field ${mappedField}`);
-                return firstMappedRadio;
+    // 3. Try container-based radio groups (Ant Design pattern)
+    const radioContainer = document.getElementById(key);
+    if (radioContainer) {
+        const containerRadios = radioContainer.querySelectorAll('input[type="radio"]');
+        if (containerRadios.length > 0) {
+            const firstContainerRadio = Array.from(containerRadios).find(r => !isExtensionElement(r));
+            if (firstContainerRadio) {
+                console.log(`Found container radio group for ${key}`);
+                return firstContainerRadio;
             }
         }
     }
@@ -1523,6 +1559,10 @@ function fillField(element, value) {
             default:
                 if (tagName === 'select') {
                     success = fillSelectElementAdvanced(element, value);
+                    // For select elements, add extra protection since they're prone to being cleared
+                    if (success) {
+                        console.log(`Select element filled with: ${element.value}`);
+                    }
                 } else {
                     element.value = value.toString();
                     success = true;
@@ -1538,12 +1578,23 @@ function fillField(element, value) {
             // Visual feedback first
             highlightField(element);
             
-            // Trigger events with a small delay to avoid conflicts with page JavaScript
+            // Trigger events with different timing for different element types
+            const isSelect = element.tagName.toLowerCase() === 'select';
+            const initialDelay = isSelect ? 100 : 50; // Longer delay for select elements
+            const changeDelay = isSelect ? 200 : 100; // Even longer delay for change event on selects
+            
             setTimeout(() => {
                 // Check if value was cleared and restore if needed
-                if (element.value !== filledValue) {
-                    console.log(`Value was cleared for ${element.name || element.id}, restoring:`, filledValue);
+                if (element.value !== filledValue || (isSelect && element.selectedIndex === -1)) {
+                    console.log(`Value was cleared for ${element.tagName.toLowerCase()} ${element.name || element.id}, restoring:`, filledValue);
                     element.value = filledValue;
+                    if (isSelect) {
+                        // For select elements, also ensure the correct option is selected
+                        const matchingOption = Array.from(element.options).find(opt => opt.value === filledValue);
+                        if (matchingOption) {
+                            matchingOption.selected = true;
+                        }
+                    }
                 }
                 
                 // Trigger events more carefully
@@ -1556,41 +1607,76 @@ function fillField(element, value) {
                 setTimeout(() => {
                     try {
                         element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                        if (isSelect) {
+                            // Additional event that some frameworks expect
+                            element.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                        }
                     } catch (e) {
                         console.log('Error triggering change event:', e);
                     }
-                }, 100);
+                }, changeDelay);
                 
-            }, 50);
+            }, initialDelay);
             
             // Add protection against value clearing
             const protectValue = () => {
-                if (element.value === '' && element.dataset.intellifillValue) {
-                    console.log(`Protecting field ${element.name || element.id} from being cleared`);
+                if ((element.value === '' || element.selectedIndex === -1) && element.dataset.intellifillValue) {
+                    console.log(`Protecting ${element.tagName.toLowerCase()} ${element.name || element.id} from being cleared`);
                     element.value = element.dataset.intellifillValue;
+                    
+                    // For select elements, also dispatch change event after restoration
+                    if (element.tagName.toLowerCase() === 'select') {
+                        setTimeout(() => {
+                            try {
+                                element.dispatchEvent(new Event('change', { bubbles: true }));
+                            } catch (e) {
+                                console.log('Error triggering change event during protection:', e);
+                            }
+                        }, 10);
+                    }
                 }
             };
             
-            // Monitor for value clearing for a short period
+            // Monitor for value clearing - more frequently for select elements
+            const isSelectElement = element.tagName.toLowerCase() === 'select';
+            const monitorInterval = isSelectElement ? 100 : 200; // Check select elements more frequently
+            const protectionDuration = isSelectElement ? 8000 : 5000; // Protect select elements longer
+            
             const protectionInterval = setInterval(() => {
                 protectValue();
-            }, 200);
+            }, monitorInterval);
             
             // Add user interaction handlers to stop protection
             const stopProtection = () => {
                 clearInterval(protectionInterval);
                 element.removeAttribute('data-intellifill-value');
                 element.removeEventListener('focus', stopProtection);
-                element.removeEventListener('click', stopProtection);
+                element.removeEventListener('mousedown', stopProtection);
                 element.removeEventListener('keydown', stopProtection);
+                if (isSelectElement) {
+                    element.removeEventListener('change', userChangeHandler);
+                }
+            };
+            
+            // For select elements, be more careful about when to stop protection
+            const userChangeHandler = (e) => {
+                // Only stop protection if user manually changed the value to something different
+                if (e.isTrusted && element.value !== element.dataset.intellifillValue) {
+                    console.log(`User manually changed select value, stopping protection`);
+                    stopProtection();
+                }
             };
             
             element.addEventListener('focus', stopProtection, { once: true });
-            element.addEventListener('click', stopProtection, { once: true });
+            element.addEventListener('mousedown', stopProtection, { once: true }); // Use mousedown instead of click for select
             element.addEventListener('keydown', stopProtection, { once: true });
             
-            // Stop protection after 5 seconds regardless
-            setTimeout(stopProtection, 5000);
+            if (isSelectElement) {
+                element.addEventListener('change', userChangeHandler);
+            }
+            
+            // Stop protection after specified duration
+            setTimeout(stopProtection, protectionDuration);
         }
         
         return success;
@@ -1602,11 +1688,26 @@ function fillField(element, value) {
 
 // Enhanced helper functions for specific field types
 function fillRadioButtonAdvanced(element, value) {
-    const radioGroup = document.querySelectorAll(`input[type="radio"][name="${element.name}"]`);
-    console.log(`Radio group for ${element.name}:`, Array.from(radioGroup).map(r => ({ value: r.value, id: r.id })));
+    let radioGroup = [];
+    
+    // Try to find radio group by name attribute first
+    if (element.name) {
+        radioGroup = document.querySelectorAll(`input[type="radio"][name="${element.name}"]`);
+        console.log(`Radio group for name "${element.name}":`, Array.from(radioGroup).map(r => ({ value: r.value, id: r.id })));
+    }
+    
+    // If no name-based group found, try to find by container (Ant Design pattern)
+    if (radioGroup.length === 0) {
+        // Find the container that holds this radio button
+        const container = element.closest('[id]') || element.closest('.ant-radio-group') || element.parentElement;
+        if (container) {
+            radioGroup = container.querySelectorAll('input[type="radio"]');
+            console.log(`Radio group in container:`, Array.from(radioGroup).map(r => ({ value: r.value, id: r.id, text: getRadioLabel(r) })));
+        }
+    }
     
     if (radioGroup.length === 0) {
-        console.log(`No radio group found for name: ${element.name}`);
+        console.log(`No radio group found for element`);
         return false;
     }
     
@@ -1616,7 +1717,7 @@ function fillRadioButtonAdvanced(element, value) {
     });
     
     const valueStr = value.toString().toLowerCase().trim();
-    console.log(`Looking for radio value: "${valueStr}"`);
+    console.log(`Looking for radio value: "${valueStr}" (original: "${value}", type: ${typeof value})`);
     
     // Supported input values:
     // YES values: "yes", "Y", "y", true, "true", "1" 
@@ -1633,34 +1734,70 @@ function fillRadioButtonAdvanced(element, value) {
         
         console.log(`Checking radio: value="${radioValue}", id="${radioId}", label="${radioLabel}"`);
         
-        // Strategy 1: Exact value match
+        // Strategy 1: Exact value match (including string "true"/"false")
         if (radioValue === valueStr) {
-            console.log(`✓ Exact match found for: ${radioValue}`);
+            console.log(`✓ Strategy 1 - Exact match found: radioValue="${radioValue}" matches valueStr="${valueStr}"`);
             radio.checked = true;
+            
+                            // Trigger events to notify the framework  
+                setTimeout(() => {
+                    // Ant Design needs multiple events to properly update
+                    radio.dispatchEvent(new Event('click', { bubbles: true }));
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                    radio.dispatchEvent(new Event('input', { bubbles: true }));
+                    console.log(`Triggered click, change, and input events for exact match radio`);
+                }, 100);
             return true;
         }
         
-        // Strategy 2: Boolean/Yes-No value matching
-        // Handle "yes", "Y", true, "1" values
-        if (value === true || valueStr === 'true' || valueStr === '1' || 
-            valueStr === 'yes' || valueStr === 'y') {
+        // Strategy 2: Boolean/Yes-No value matching with string handling
+        // Handle "Yes", "yes", "Y", "y", true, "1", "true" values
+        const isYesValue = (value === true || value === 'true' || value === 'True' || value === 'YES' || value === 'Yes' ||
+            valueStr === 'true' || valueStr === '1' || valueStr === 'yes' || valueStr === 'y');
+        console.log(`  Strategy 2a check: isYesValue=${isYesValue} for value="${value}"`);
+        
+        if (isYesValue) {
             if (radioValue === 'yes' || radioValue === 'true' || radioValue === '1' || 
                 radioValue === 'y' || radioId.includes('yes') || radioLabel.includes('yes') ||
                 radioLabel.includes('y ') || radioLabel.startsWith('y ') || radioLabel.endsWith(' y')) {
-                console.log(`✓ YES/TRUE match found for: ${radioValue} (input: ${valueStr})`);
+                console.log(`✓ Strategy 2a - YES/TRUE match found: radioValue="${radioValue}" for input="${value}"`);
                 radio.checked = true;
+                
+                // Trigger events to notify the framework
+                setTimeout(() => {
+                    // Ant Design needs multiple events to properly update
+                    radio.dispatchEvent(new Event('click', { bubbles: true }));
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                    radio.dispatchEvent(new Event('input', { bubbles: true }));
+                    console.log(`Triggered click, change, and input events for YES radio`);
+                }, 100);
                 return true;
             }
         }
         
-        // Handle "no", "N", false, "0" values  
-        if (value === false || valueStr === 'false' || valueStr === '0' || 
-            valueStr === 'no' || valueStr === 'n') {
-            if (radioValue === 'no' || radioValue === 'false' || radioValue === '0' || 
+        // Handle "No", "no", "N", "n", false, "0", "false" values  
+        const isNoValue = (value === false || value === 'false' || value === 'False' || value === 'NO' || value === 'No' ||
+            valueStr === 'false' || valueStr === '0' || valueStr === 'no' || valueStr === 'n');
+        console.log(`  Strategy 2b check: isNoValue=${isNoValue} for value="${value}"`);
+        
+        if (isNoValue) {
+            const radioMatches = (radioValue === 'no' || radioValue === 'false' || radioValue === '0' || 
                 radioValue === 'n' || radioId.includes('no') || radioLabel.includes('no') ||
-                radioLabel.includes('n ') || radioLabel.startsWith('n ') || radioLabel.endsWith(' n')) {
-                console.log(`✓ NO/FALSE match found for: ${radioValue} (input: ${valueStr})`);
+                radioLabel.includes('n ') || radioLabel.startsWith('n ') || radioLabel.endsWith(' n'));
+            console.log(`    Radio matches NO pattern: ${radioMatches} for radioValue="${radioValue}"`);
+            
+            if (radioMatches) {
+                console.log(`✓ Strategy 2b - NO/FALSE match found: radioValue="${radioValue}" for input="${value}"`);
                 radio.checked = true;
+                
+                // Trigger events to notify the framework
+                setTimeout(() => {
+                    // Ant Design needs multiple events to properly update
+                    radio.dispatchEvent(new Event('click', { bubbles: true }));
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                    radio.dispatchEvent(new Event('input', { bubbles: true }));
+                    console.log(`Triggered click, change, and input events for NO radio`);
+                }, 100);
                 return true;
             }
         }
@@ -1669,6 +1806,15 @@ function fillRadioButtonAdvanced(element, value) {
         if (radioValue.includes(valueStr) || valueStr.includes(radioValue)) {
             console.log(`✓ Partial match found for: ${radioValue}`);
             radio.checked = true;
+            
+            // Trigger events to notify the framework
+            setTimeout(() => {
+                // Ant Design needs multiple events to properly update
+                radio.dispatchEvent(new Event('click', { bubbles: true }));
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+                radio.dispatchEvent(new Event('input', { bubbles: true }));
+                console.log(`Triggered click, change, and input events for partial match radio`);
+            }, 100);
             return true;
         }
         
@@ -1676,11 +1822,21 @@ function fillRadioButtonAdvanced(element, value) {
         if (radioLabel && (radioLabel.includes(valueStr) || valueStr.includes(radioLabel))) {
             console.log(`✓ Label match found for: ${radioLabel}`);
             radio.checked = true;
+            
+            // Trigger events to notify the framework
+            setTimeout(() => {
+                // Ant Design needs multiple events to properly update
+                radio.dispatchEvent(new Event('click', { bubbles: true }));
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+                radio.dispatchEvent(new Event('input', { bubbles: true }));
+                console.log(`Triggered click, change, and input events for label match radio`);
+            }, 100);
             return true;
         }
     }
     
-    console.log(`✗ No radio match found for value: "${valueStr}"`);
+    console.log(`✗ No radio match found for value: "${valueStr}" (original: "${value}") in ${radioGroup.length} radio options`);
+    console.log(`Available radio values:`, Array.from(radioGroup).map(r => r.value));
     return false;
 }
 
@@ -1692,18 +1848,37 @@ function getRadioLabel(radioElement) {
         if (label) return label.textContent.toLowerCase().trim();
     }
     
-    // Try to find parent label
+    // Try to find parent label (common in traditional forms)
     const parentLabel = radioElement.closest('label');
-    if (parentLabel) return parentLabel.textContent.toLowerCase().trim();
+    if (parentLabel) {
+        // For Ant Design, get only the text that's not part of nested elements
+        const parentText = parentLabel.textContent.toLowerCase().trim();
+        if (parentText) return parentText;
+    }
     
-    // Try to find following text/label
+    // Try to find adjacent span elements (Ant Design pattern)
+    const container = radioElement.closest('.ant-radio-button') || radioElement.parentElement;
+    if (container) {
+        const spans = container.parentElement.querySelectorAll('span');
+        for (const span of spans) {
+            if (!span.querySelector('input') && !span.classList.contains('ant-radio-button-inner')) {
+                const spanText = span.textContent.trim();
+                if (spanText && spanText.length > 0) {
+                    return spanText.toLowerCase();
+                }
+            }
+        }
+    }
+    
+    // Try to find following text/label nodes
     let sibling = radioElement.nextSibling;
     while (sibling) {
         if (sibling.nodeType === 3) { // Text node
             const text = sibling.textContent.trim();
             if (text) return text.toLowerCase();
         } else if (sibling.tagName === 'LABEL' || sibling.tagName === 'SPAN') {
-            return sibling.textContent.toLowerCase().trim();
+            const siblingText = sibling.textContent.toLowerCase().trim();
+            if (siblingText) return siblingText;
         }
         sibling = sibling.nextSibling;
     }
@@ -1799,13 +1974,21 @@ function fillSelectElementAdvanced(element, value) {
     const options = element.querySelectorAll('option');
     const valueStr = value.toString().toLowerCase();
     
+    console.log(`Filling select element with value: "${value}"`);
+    console.log(`Available options:`, Array.from(options).map(opt => ({ value: opt.value, text: opt.textContent.trim() })));
+    
+    // Reset to no selection first
+    element.selectedIndex = -1;
+    
     // First try exact matches
     for (const option of options) {
         const optionValue = option.value.toLowerCase();
         const optionText = option.textContent.toLowerCase().trim();
         
         if (optionValue === valueStr || optionText === valueStr) {
+            console.log(`✓ Exact match found: ${option.value} = "${option.textContent.trim()}"`);
             element.value = option.value;
+            option.selected = true;
             return true;
         }
     }
@@ -1819,7 +2002,9 @@ function fillSelectElementAdvanced(element, value) {
         if (valueStr === 'association') {
             if (optionValue.includes('association') || optionText.includes('association') ||
                 optionValue.includes('assoc') || optionText.includes('assoc')) {
+                console.log(`✓ Association match found: ${option.value} = "${option.textContent.trim()}"`);
                 element.value = option.value;
+                option.selected = true;
                 return true;
             }
         }
@@ -1827,10 +2012,14 @@ function fillSelectElementAdvanced(element, value) {
         // General partial matching
         if (optionValue.includes(valueStr) || optionText.includes(valueStr) ||
             valueStr.includes(optionValue) || valueStr.includes(optionText)) {
+            console.log(`✓ Partial match found: ${option.value} = "${option.textContent.trim()}"`);
             element.value = option.value;
+            option.selected = true;
             return true;
         }
     }
+    
+    console.log(`✗ No match found for value: "${value}"`);
     return false;
 }
 
