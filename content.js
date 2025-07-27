@@ -6,11 +6,11 @@ const EXTENSION_ID = 'n8n-form-autofiller';
 // const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
 // const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
 
-// const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
-// const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
 
-const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook/954484f2-69e7-40e0-b666-361b97415359';
-const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook/954484f2-69e7-40e0-b666-361b97415359';
+// const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/8d59f19b-8c40-4359-ba67-3551a75384b3';
+// const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/8d59f19b-8c40-4359-ba67-3551a75384b3';
 
 
 let isInitialized = false;
@@ -195,8 +195,7 @@ function addFloatingInterface() {
              </div>
             
                          <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                 <button id="${EXTENSION_ID}-process-btn" style="flex: 1; padding: 12px; border: 1px solid #f59e0b; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #f59e0b; color: white;">SuperCompute</button>
-                                 <button id="${EXTENSION_ID}-autofill-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;" disabled>SuperPaste</button>
+                                 <button id="${EXTENSION_ID}-super-paste-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;">Super Paste</button>
             </div>
             
             <div id="${EXTENSION_ID}-status" style="margin-top: 15px; padding: 10px; border-radius: 8px; font-size: 13px; text-align: center; display: none;"></div>
@@ -215,8 +214,7 @@ function addFloatingInterface() {
 function setupEventListeners(floatingBtn, slidingPanel) {
     const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
     const dataInput = document.getElementById(`${EXTENSION_ID}-data-input`);
-    const processBtn = document.getElementById(`${EXTENSION_ID}-process-btn`);
-    const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
+    const superPasteBtn = document.getElementById(`${EXTENSION_ID}-super-paste-btn`);
     const closeBtn = document.getElementById(`${EXTENSION_ID}-close-btn`);
     
     // Floating button click
@@ -236,14 +234,9 @@ function setupEventListeners(floatingBtn, slidingPanel) {
         }
     });
     
-    // Process button click
-    processBtn.addEventListener('click', () => {
-        processData();
-    });
-    
-    // Autofill button click
-    autofillBtn.addEventListener('click', () => {
-        autofillForm();
+    // Super Paste button click - combines both process and autofill
+    superPasteBtn.addEventListener('click', () => {
+        processAndAutofill();
     });
     
     // Save URL when typing
@@ -330,13 +323,336 @@ function loadSavedData() {
 
     // Check if we have processed data
     safeStorageGet(['processedData'], (result) => {
-        const autofillBtn = document.getElementById(`${EXTENSION_ID}-autofill-btn`);
-        if (result && result.processedData && autofillBtn) {
+        if (result && result.processedData) {
             processedData = result.processedData;
-            autofillBtn.disabled = false;
-            showStatus('Data ready for autofill', 'success');
+            showStatus('Previously processed data available', 'success');
         }
     });
+}
+
+// Function to extract clean form content from the page
+function getCleanFormContent() {
+    try {
+        console.log('Starting form content extraction...');
+        const cleanContent = [];
+        
+        // First, try to find and process forms
+        const forms = document.querySelectorAll('form');
+        console.log(`Found ${forms.length} forms on the page`);
+        
+        forms.forEach((form, index) => {
+            // Skip if this is part of the extension panel
+            if (form.closest(`#${EXTENSION_ID}-container`)) {
+                console.log(`Skipping form ${index} - part of extension`);
+                return;
+            }
+            
+            console.log(`Processing form ${index}`);
+            const cleanHtml = cleanElement(form.cloneNode(true));
+            if (cleanHtml.trim()) {
+                cleanContent.push(`<!-- Form ${index + 1} -->\n${cleanHtml}`);
+                console.log(`Added form ${index} content, length: ${cleanHtml.length}`);
+            }
+        });
+        
+        // If no forms found, or as additional content, look for input containers
+        const inputs = document.querySelectorAll('input, textarea, select');
+        console.log(`Found ${inputs.length} input elements on the page`);
+        
+        if (forms.length === 0 && inputs.length > 0) {
+            console.log('No forms found, but inputs exist. Looking for input containers...');
+            
+            // Group inputs by their containers
+            const processedContainers = new Set();
+            
+            inputs.forEach((input, index) => {
+                // Skip extension inputs
+                if (input.closest(`#${EXTENSION_ID}-container`)) return;
+                
+                // Find a meaningful container
+                let container = input.closest('main, section, article, div[class*="form"], div[class*="container"], div[class*="content"]') || 
+                               input.closest('div') || 
+                               input.parentElement;
+                
+                if (container && !processedContainers.has(container)) {
+                    processedContainers.add(container);
+                    console.log(`Processing input container ${index} for input: ${input.name || input.id || input.type}`);
+                    
+                    const cleanHtml = cleanElement(container.cloneNode(true));
+                    if (cleanHtml.trim()) {
+                        cleanContent.push(`<!-- Input Container ${processedContainers.size} -->\n${cleanHtml}`);
+                        console.log(`Added input container content, length: ${cleanHtml.length}`);
+                    }
+                }
+            });
+        }
+        
+        // If still no content, try broader selectors
+        if (cleanContent.length === 0) {
+            console.log('No content found yet, trying broader selectors...');
+            
+            const potentialContainers = document.querySelectorAll(
+                'main, [role="main"], .main-content, .content, .page-content, ' +
+                '[class*="form"], [id*="form"], [class*="application"], [class*="questionnaire"]'
+            );
+            
+            console.log(`Found ${potentialContainers.length} potential containers`);
+            
+            potentialContainers.forEach((container, index) => {
+                if (container.closest(`#${EXTENSION_ID}-container`)) return;
+                
+                // Check if this container has any form elements or substantial text
+                const hasFormElements = container.querySelector('input, textarea, select, button');
+                const textContent = container.textContent.trim();
+                const hasSubstantialText = textContent.length > 50;
+                
+                console.log(`Container ${index}: hasFormElements=${!!hasFormElements}, textLength=${textContent.length}`);
+                
+                if (hasFormElements || hasSubstantialText) {
+                    const cleanHtml = cleanElement(container.cloneNode(true));
+                    if (cleanHtml.trim()) {
+                        cleanContent.push(`<!-- Container ${index + 1} -->\n${cleanHtml}`);
+                        console.log(`Added container ${index} content, length: ${cleanHtml.length}`);
+                    }
+                }
+            });
+        }
+        
+        // Final fallback - get body content if nothing else worked
+        if (cleanContent.length === 0) {
+            console.log('No content found with specific selectors, using body fallback...');
+            const bodyClone = document.body.cloneNode(true);
+            const cleanHtml = cleanElement(bodyClone);
+            if (cleanHtml.trim()) {
+                cleanContent.push(`<!-- Body Content -->\n${cleanHtml}`);
+                console.log(`Added body content as fallback, length: ${cleanHtml.length}`);
+            }
+        }
+        
+        const result = cleanContent.join('\n\n');
+        console.log(`Final page source length: ${result.length}`);
+        console.log('Page source preview:', result.substring(0, 500) + '...');
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error extracting form content:', error);
+        console.error('Error stack:', error.stack);
+        
+        // Emergency fallback - just return a simplified body content
+        try {
+            const bodyText = document.body.innerText;
+            console.log('Using emergency fallback with body text, length:', bodyText.length);
+            return `<!-- Emergency Fallback -->\n${bodyText}`;
+        } catch (fallbackError) {
+            console.error('Even fallback failed:', fallbackError);
+            return 'Error extracting page content';
+        }
+    }
+}
+
+// Function to clean an element by removing unnecessary content
+function cleanElement(element) {
+    try {
+        console.log('Cleaning element:', element.tagName, element.className || element.id || '');
+        
+        // Remove only the most obvious non-content elements
+        const elementsToRemove = element.querySelectorAll(
+            'script, style, noscript'
+        );
+        console.log(`Removing ${elementsToRemove.length} script/style elements`);
+        elementsToRemove.forEach(el => el.remove());
+        
+        // Remove extension elements
+        const extensionElements = element.querySelectorAll(`#${EXTENSION_ID}-container, [id*="${EXTENSION_ID}"]`);
+        console.log(`Removing ${extensionElements.length} extension elements`);
+        extensionElements.forEach(el => el.remove());
+        
+        // Minimal attribute cleaning - keep most attributes for now
+        const allElements = element.querySelectorAll('*');
+        allElements.forEach(el => {
+            // Only remove clearly unnecessary attributes
+            const attributesToRemove = [];
+            
+            for (let i = 0; i < el.attributes.length; i++) {
+                const attr = el.attributes[i];
+                // Only remove styling and event attributes
+                if (attr.name.startsWith('on') || // event handlers
+                    attr.name === 'style' || // inline styles
+                    attr.name.startsWith('_') // internal attributes
+                   ) {
+                    attributesToRemove.push(attr.name);
+                }
+            }
+            
+            attributesToRemove.forEach(attrName => {
+                el.removeAttribute(attrName);
+            });
+        });
+        
+        const result = element.outerHTML;
+        console.log(`Cleaned element result length: ${result.length}`);
+        console.log('Cleaned element preview:', result.substring(0, 200) + '...');
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error cleaning element:', error);
+        // Return original if cleaning fails
+        return element.outerHTML;
+    }
+}
+
+// Combined function to process data and autofill form
+async function processAndAutofill() {
+    const urlInput = document.getElementById(`${EXTENSION_ID}-url-input`);
+    const dataInput = document.getElementById(`${EXTENSION_ID}-data-input`);
+    const superPasteBtn = document.getElementById(`${EXTENSION_ID}-super-paste-btn`);
+    
+    const url = urlInput.value.trim();
+    const data = dataInput.value.trim();
+    
+    // Check that at least one field is provided
+    if (!url && !data) {
+        showStatus('Please provide either a URL or data to process', 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
+        return;
+    }
+
+    // If URL is provided, validate it
+    if (url && !isValidUrl(url)) {
+        showStatus('Please enter a valid URL format', 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
+        return;
+    }
+
+    try {
+        // Clear previous processed data first to avoid context issues
+        processedData = null;
+        safeStorageSet({ processedData: null });
+        
+        superPasteBtn.disabled = true;
+        showStatus('Processing data and preparing to autofill...', 'loading');
+
+        // Build webhook URL with provided parameters
+        let webhookUrl = N8N_WEBHOOK_URL;
+        
+        // Prepare request body for POST
+        const requestBody = {};
+        
+        if (url) {
+            // Normalize the URL (add https:// if needed)
+            const normalizedUrl = normalizeUrl(url);
+            requestBody.url = normalizedUrl;
+        }
+        
+        if (data) {
+            requestBody.data = data;
+        }
+        
+        // Add the cleaned form content from the current page
+        requestBody.pageSource = getCleanFormContent();
+        
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('Webhook response:', result);
+
+        // Check if we got data directly from the webhook
+        if (result && Object.keys(result).length > 0 && !result.message) {
+            // We got the processed data directly!
+            processedData = result;
+            safeStorageSet({ processedData: result });
+            
+            // Automatically start autofill
+            showStatus('Data received! Starting autofill...', 'loading');
+            
+            setTimeout(() => {
+                try {
+                    const filledCount = autofillFormAdvanced(processedData);
+                    
+                    if (filledCount > 0) {
+                        showStatus(`Super Paste completed! Filled ${filledCount} fields successfully.`, 'success');
+                        
+                        // Clear the success message after 5 seconds
+                        setTimeout(() => {
+                            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                            if (statusDiv && statusDiv.style.display !== 'none') {
+                                statusDiv.style.display = 'none';
+                            }
+                        }, 5000);
+                        
+                        // Close panel after successful autofill
+                        setTimeout(() => {
+                            const slidingPanel = document.getElementById(`${EXTENSION_ID}-sliding-panel`);
+                            closeSlidePanel(slidingPanel);
+                        }, 3000);
+                    } else {
+                        showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
+                        
+                        // Clear the error message after 5 seconds
+                        setTimeout(() => {
+                            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                            if (statusDiv && statusDiv.style.display !== 'none') {
+                                statusDiv.style.display = 'none';
+                            }
+                        }, 5000);
+                    }
+                } catch (autofillError) {
+                    console.error('Error during autofill:', autofillError);
+                    showStatus(`Error during autofill: ${autofillError.message}`, 'error');
+                    // Clear the error message after 5 seconds
+                    setTimeout(() => {
+                        const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                        if (statusDiv && statusDiv.style.display !== 'none') {
+                            statusDiv.style.display = 'none';
+                        }
+                    }, 5000);
+                }
+                
+                superPasteBtn.disabled = false;
+            }, 500);
+            
+        } else {
+            // Start polling for results
+            showStatus('Data sent successfully. Polling for results...', 'loading');
+            startPollingWithAutofill();
+        }
+
+    } catch (error) {
+        console.error('Error sending data to n8n:', error);
+        showStatus(`Error: ${error.message}`, 'error');
+        // Clear the error message after 5 seconds
+        setTimeout(() => {
+            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+            if (statusDiv && statusDiv.style.display !== 'none') {
+                statusDiv.style.display = 'none';
+            }
+        }, 5000);
+        superPasteBtn.disabled = false;
+    }
 }
 
 async function processData() {
@@ -410,8 +726,8 @@ async function processData() {
             requestBody.data = data;
         }
         
-        // Add the current page's HTML source
-        requestBody.pageSource = document.documentElement.outerHTML;
+        // Add the cleaned form content from the current page
+        requestBody.pageSource = getCleanFormContent();
         
         const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -455,6 +771,124 @@ async function processData() {
         }, 5000);
         processBtn.disabled = false;
     }
+}
+
+function startPollingWithAutofill() {
+    if (isPolling) return;
+    
+    const superPasteBtn = document.getElementById(`${EXTENSION_ID}-super-paste-btn`);
+    
+    isPolling = true;
+    let attempts = 0;
+    const maxAttempts = 30; // 5 minutes with 10-second intervals
+
+    pollInterval = setInterval(async () => {
+        // Check if extension context is still valid
+        if (!isExtensionContextValid()) {
+            console.log('Extension context invalidated, stopping polling');
+            stopPolling();
+            return;
+        }
+        
+        attempts++;
+        
+        try {
+            const response = await fetch(N8N_POLL_URL);
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data && Object.keys(data).length > 0) {
+                    // We got data!
+                    processedData = data;
+                    safeStorageSet({ processedData: data });
+                    
+                    stopPolling();
+                    
+                    // Automatically start autofill
+                    showStatus('Data received! Starting autofill...', 'loading');
+                    
+                    setTimeout(() => {
+                        try {
+                            const filledCount = autofillFormAdvanced(processedData);
+                            
+                            if (filledCount > 0) {
+                                showStatus(`Super Paste completed! Filled ${filledCount} fields successfully.`, 'success');
+                                
+                                // Clear the success message after 5 seconds
+                                setTimeout(() => {
+                                    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                                    if (statusDiv && statusDiv.style.display !== 'none') {
+                                        statusDiv.style.display = 'none';
+                                    }
+                                }, 5000);
+                                
+                                // Close panel after successful autofill
+                                setTimeout(() => {
+                                    const slidingPanel = document.getElementById(`${EXTENSION_ID}-sliding-panel`);
+                                    closeSlidePanel(slidingPanel);
+                                }, 3000);
+                            } else {
+                                showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
+                                
+                                // Clear the error message after 5 seconds
+                                setTimeout(() => {
+                                    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                                    if (statusDiv && statusDiv.style.display !== 'none') {
+                                        statusDiv.style.display = 'none';
+                                    }
+                                }, 5000);
+                            }
+                        } catch (autofillError) {
+                            console.error('Error during autofill:', autofillError);
+                            showStatus(`Error during autofill: ${autofillError.message}`, 'error');
+                            // Clear the error message after 5 seconds
+                            setTimeout(() => {
+                                const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                                if (statusDiv && statusDiv.style.display !== 'none') {
+                                    statusDiv.style.display = 'none';
+                                }
+                            }, 5000);
+                        }
+                        
+                        superPasteBtn.disabled = false;
+                    }, 500);
+                    
+                    return;
+                }
+            }
+            
+            if (attempts >= maxAttempts) {
+                stopPolling();
+                superPasteBtn.disabled = false;
+                showStatus('Timeout: No data received after 5 minutes', 'error');
+                // Clear the error message after 5 seconds
+                setTimeout(() => {
+                    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                    if (statusDiv && statusDiv.style.display !== 'none') {
+                        statusDiv.style.display = 'none';
+                    }
+                }, 5000);
+            } else {
+                showStatus(`Polling for results... (${attempts}/${maxAttempts})`, 'loading');
+            }
+            
+        } catch (error) {
+            console.error('Polling error:', error);
+            if (attempts >= maxAttempts) {
+                stopPolling();
+                superPasteBtn.disabled = false;
+                showStatus('Error polling for results', 'error');
+                // Clear the error message after 5 seconds
+                setTimeout(() => {
+                    const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
+                    if (statusDiv && statusDiv.style.display !== 'none') {
+                        statusDiv.style.display = 'none';
+                    }
+                }, 5000);
+            }
+        }
+    }, 10000); // Poll every 10 seconds
 }
 
 function startPolling() {
@@ -537,64 +971,7 @@ function stopPolling() {
     }
 }
 
-async function autofillForm() {
-    if (!processedData) {
-        showStatus('No data to autofill. Process some data first.', 'error');
-        // Clear the error message after 5 seconds
-        setTimeout(() => {
-            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
-            if (statusDiv && statusDiv.style.display !== 'none') {
-                statusDiv.style.display = 'none';
-            }
-        }, 5000);
-        return;
-    }
 
-    try {
-        console.log('Attempting to autofill with data:', processedData);
-        
-        const filledCount = autofillFormAdvanced(processedData);
-        
-        if (filledCount > 0) {
-            showStatus(`Form autofilled successfully! Filled ${filledCount} fields. Green highlights will remain until you interact with them.`, 'success');
-            
-            // Clear the success message after 5 seconds
-            setTimeout(() => {
-                const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
-                if (statusDiv && statusDiv.style.display !== 'none') {
-                    statusDiv.style.display = 'none';
-                }
-            }, 5000);
-            
-            // Optional: Close panel after successful autofill
-            setTimeout(() => {
-                const slidingPanel = document.getElementById(`${EXTENSION_ID}-sliding-panel`);
-                closeSlidePanel(slidingPanel);
-            }, 3000);
-        } else {
-            showStatus('No fields were filled. Check if the page has compatible forms.', 'error');
-            
-            // Clear the error message after 5 seconds
-            setTimeout(() => {
-                const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
-                if (statusDiv && statusDiv.style.display !== 'none') {
-                    statusDiv.style.display = 'none';
-                }
-            }, 5000);
-        }
-
-    } catch (error) {
-        console.error('Error autofilling form:', error);
-        showStatus(`Error autofilling: ${error.message}`, 'error');
-        // Clear the error message after 5 seconds
-        setTimeout(() => {
-            const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
-            if (statusDiv && statusDiv.style.display !== 'none') {
-                statusDiv.style.display = 'none';
-            }
-        }, 5000);
-    }
-}
 
 function showStatus(message, type) {
     const statusDiv = document.getElementById(`${EXTENSION_ID}-status`);
@@ -720,153 +1097,265 @@ function detectForms() {
 function autofillFormAdvanced(data) {
     console.log('Advanced autofill starting with data:', data);
     
-    // Flatten and normalize the data structure
-    const flattenedData = flattenData(data);
-    console.log('Flattened data:', flattenedData);
-    console.log('Keys in flattened data:', Object.keys(flattenedData));
-    
     let filledFields = 0;
-    const fieldMappings = {
-        // Business information - direct field mappings
-        'businessName': ['businessname', 'business_name', 'company_name', 'business', 'company', 'organization'],
-        'doingBusinessAs': ['dba', 'dba_name', 'doing_business_as', 'trade_name', 'dbaname'],
-        'businessWebsite': ['website', 'url', 'website_url', 'site', 'homepage', 'web_site', 'businessWebsite', 'business_website'],
-        'natureOfOperations': ['description', 'business_description', 'operations', 'nature_of_business', 'business_type', 'type_of_business'],
-        'naics': ['naics_code', 'naics', 'industry_code', 'sic_code'],
-        'fein': ['fein', 'ein', 'employer_id', 'tax_id', 'federal_tax_id'],
-        'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income', 'annualRevenue', 'annualSales'],
-        'yearsOfManagementExperience': ['experience', 'management_experience', 'years_experience', 'management_years','yearsOfExperience'],
-        'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year', 'businessYearOfFounding'],
-        'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
-        'fullTimeEmployees': ['full_time_employees', 'full_time_employees_count', 'numberOfFullTimeEmployees', 'fullTimeEmployees'],
-        'partTimeEmployees': ['part_time_employees', 'part_time_employees_count', 'numberOfPartTimeEmployees', 'partTimeEmployees'],
-        'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate', 'insurance_start_date', 'start_date', 'coverage_start_date', 'policy_start_date', 'coverage_effective_date'],
-        'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
-        'insuranceExpiryDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
-        'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType', 'legal_entity', 'business_type', 'business_entity_type'],
-        'totalPayroll': ['total_payroll', 'payroll_total', 'payrollTotal', 'totalPayroll', 'totalEmployeePayroll'],
-
-        'totalArea': ['total_area', 'total_square_feet', 'total_square_meters', 'total_square_feet_area', 'total_square_meters_area', 'totalArea'],
-        'areaOccupied': ['area_occupied', 'occupied_area', 'occupied_square_feet', 'occupied_square_meters', 'occupied_square_feet_area', 'occupied_square_meters_area', 'areaOccupied'],
-        'areaOccupiedByOthers': ['area_occupied_by_others', 'occupied_area_by_others', 'occupied_square_feet_by_others', 'occupied_square_meters_by_others', 'occupied_square_feet_area_by_others', 'occupied_square_meters_area_by_others', 'areaOccupiedByOthers'],
-        'totalStories': ['total_stories', 'stories', 'story_count', 'total_story_count', 'totalStories'],
-        'yearBuilt': ['year_built', 'built_year', 'yearBuilt'],
-        'roofUpdateYear': ['roof_update_year', 'roof_update_year', 'roofUpdateYear'],
-        'sprinkleredPercentage': ['sprinklered_percentage', 'sprinkleredPercentage'],
-        'buildingCoverage': ['building_coverage', 'buildingCoverage'],
-        'businessPersonalPropertyCoverage': ['business_personal_property_coverage', 'businessPersonalPropertyCoverage'],
-
-        // Contact information - from contacts arraoy
-        'phone': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone', 'business_phone', 'office_phone'],
-        'email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email', 'business_email'],
-        'fax': ['fax', 'fax_number', 'fax_phone', 'facsimile'],
-        
-        // Address fields - from mailingAddress object
-        'street': ['address', 'street', 'address1', 'street_address', 'mailing_address', 'business_address'],
-        'city': ['city', 'town', 'locality', 'business_city'],
-        'state': ['state', 'province', 'region', 'business_state'],
-        'zip': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
-        'zipCode': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
-    };
+    let fieldMappings = null;
     
-    // Process each field in the flattened data
-    for (const [key, value] of Object.entries(flattenedData)) {
-        if (value === null || value === undefined || value === '') continue;
+    // Check if we have the new message.content structure
+    if (data && data.message && data.message.content) {
+        console.log('Using new message.content structure for direct field mapping');
+        fieldMappings = data.message.content;
+        console.log('Field mappings:', fieldMappings);
         
-        console.log(`Trying to fill field: ${key} = ${value}`);
-        const element = findFormElementAdvanced(key, value, fieldMappings);
-        if (element) {
-            console.log(`Found element for ${key}:`, element.name || element.id || element.placeholder);
-            if (fillField(element, value)) {
-                filledFields++;
+        // Process each field ID to value mapping
+        for (const [fieldId, value] of Object.entries(fieldMappings)) {
+            if (value === null || value === undefined || value === '') continue;
+            
+            console.log(`Trying to fill field ID: ${fieldId} = ${value}`);
+            
+            // Find element by exact ID first
+            let element = document.getElementById(fieldId);
+            
+            // If not found by ID, try by name
+            if (!element) {
+                element = document.querySelector(`input[name="${fieldId}"], textarea[name="${fieldId}"], select[name="${fieldId}"]`);
             }
-        } else {
-            console.log(`No element found for ${key}`);
+            
+            // Special handling for radio buttons - if we found a radio, we need to handle the group
+            if (!element) {
+                // Try to find radio button group by name (common case)
+                const radioGroup = document.querySelectorAll(`input[type="radio"][name="${fieldId}"]`);
+                if (radioGroup.length > 0) {
+                    element = radioGroup[0]; // Use first radio as representative
+                    console.log(`Found radio group for ${fieldId} with ${radioGroup.length} options`);
+                }
+            }
+            
+            // Skip if element is part of extension panel
+            if (element && element.closest(`#${EXTENSION_ID}-container`)) {
+                console.log(`Skipping ${fieldId} - part of extension panel`);
+                continue;
+            }
+            
+            if (element) {
+                console.log(`Found element for ${fieldId}:`, element.tagName, element.type || 'no-type');
+                if (fillField(element, value)) {
+                    filledFields++;
+                }
+            } else {
+                console.log(`No element found for field ID: ${fieldId}`);
+            }
+        }
+    } else {
+        console.log('Using legacy data structure with field mapping');
+        
+        // Fallback to old logic for backward compatibility
+        const flattenedData = flattenData(data);
+        console.log('Flattened data:', flattenedData);
+        
+        const legacyFieldMappings = {
+            // Business information - direct field mappings
+            'businessName': ['businessname', 'business_name', 'company_name', 'business', 'company', 'organization'],
+            'doingBusinessAs': ['dba', 'dba_name', 'doing_business_as', 'trade_name', 'dbaname'],
+            'businessWebsite': ['website', 'url', 'website_url', 'site', 'homepage', 'web_site', 'businessWebsite', 'business_website'],
+            'natureOfOperations': ['description', 'business_description', 'operations', 'nature_of_business', 'business_type', 'type_of_business'],
+            'naics': ['naics_code', 'naics', 'industry_code', 'sic_code'],
+            'fein': ['fein', 'ein', 'employer_id', 'tax_id', 'federal_tax_id'],
+            'annualRevenue': ['revenue', 'annual_revenue', 'income', 'gross_revenue', 'annual_income', 'annualRevenue', 'annualSales'],
+            'yearsOfManagementExperience': ['experience', 'management_experience', 'years_experience', 'management_years','yearsOfExperience'],
+            'yearOfFounding': ['start_year', 'year_started', 'founded', 'established', 'year_founded', 'founding_year', 'businessYearOfFounding'],
+            'isNonProfit': ['nonprofit', 'non_profit', 'non-profit', 'is_nonprofit', 'non_profit_status'],
+            'fullTimeEmployees': ['full_time_employees', 'full_time_employees_count', 'numberOfFullTimeEmployees', 'fullTimeEmployees'],
+            'partTimeEmployees': ['part_time_employees', 'part_time_employees_count', 'numberOfPartTimeEmployees', 'partTimeEmployees'],
+            'insuranceEffectiveDate': ['insurance_effective_date', 'effective_date', 'effectiveDate', 'insuranceEffectiveDate', 'insurance_start_date', 'start_date', 'coverage_start_date', 'policy_start_date', 'coverage_effective_date'],
+            'insuranceExpirationDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
+            'insuranceExpiryDate': ['insurance_expiry_date', 'expiry_date', 'expiryDate', 'insuranceExpiryDate', 'insurance_end_date', 'end_date', 'coverage_end_date', 'policy_end_date', 'coverage_expiry_date', 'expiration_date'],
+            'legalEntity' : ['legal_entity_type', 'entity_type', 'legalEntityType', 'entityType', 'legal_entity', 'business_type', 'business_entity_type'],
+            'totalPayroll': ['total_payroll', 'payroll_total', 'payrollTotal', 'totalPayroll', 'totalEmployeePayroll'],
+
+            'totalArea': ['total_area', 'total_square_feet', 'total_square_meters', 'total_square_feet_area', 'total_square_meters_area', 'totalArea'],
+            'areaOccupied': ['area_occupied', 'occupied_area', 'occupied_square_feet', 'occupied_square_meters', 'occupied_square_feet_area', 'occupied_square_meters_area', 'areaOccupied'],
+            'areaOccupiedByOthers': ['area_occupied_by_others', 'occupied_area_by_others', 'occupied_square_feet_by_others', 'occupied_square_meters_by_others', 'occupied_square_feet_area_by_others', 'occupied_square_meters_area_by_others', 'areaOccupiedByOthers'],
+            'totalStories': ['total_stories', 'stories', 'story_count', 'total_story_count', 'totalStories'],
+            'yearBuilt': ['year_built', 'built_year', 'yearBuilt'],
+            'roofUpdateYear': ['roof_update_year', 'roof_update_year', 'roofUpdateYear'],
+            'sprinkleredPercentage': ['sprinklered_percentage', 'sprinkleredPercentage'],
+            'buildingCoverage': ['building_coverage', 'buildingCoverage'],
+            'businessPersonalPropertyCoverage': ['business_personal_property_coverage', 'businessPersonalPropertyCoverage'],
+
+            // Contact information - from contacts arraoy
+            'phone': ['phone', 'telephone', 'phonenumber', 'phone_number', 'contact_phone', 'business_phone', 'office_phone'],
+            'email': ['email', 'emailaddress', 'email_address', 'user_email', 'contact_email', 'business_email'],
+            'fax': ['fax', 'fax_number', 'fax_phone', 'facsimile'],
+            
+            // Address fields - from mailingAddress object
+            'street': ['address', 'street', 'address1', 'street_address', 'mailing_address', 'business_address'],
+            'city': ['city', 'town', 'locality', 'business_city'],
+            'state': ['state', 'province', 'region', 'business_state'],
+            'zip': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
+            'zipCode': ['zip', 'zipcode', 'postal', 'postalcode', 'postcode', 'business_zip'],
+        };
+        
+        // Process each field in the flattened data
+        for (const [key, value] of Object.entries(flattenedData)) {
+            if (value === null || value === undefined || value === '') continue;
+            
+            console.log(`Trying to fill field: ${key} = ${value}`);
+            const element = findFormElementAdvanced(key, value, legacyFieldMappings);
+            if (element) {
+                console.log(`Found element for ${key}:`, element.name || element.id || element.placeholder);
+                if (fillField(element, value)) {
+                    filledFields++;
+                }
+            } else {
+                console.log(`No element found for ${key}`);
+            }
         }
     }
     
     // Specific handling for insurance date fields by exact ID
+    // Only apply this if using new direct mapping and these fields weren't already filled
     const insuranceEffectiveField = document.getElementById('insuranceEffectiveDate');
     const insuranceExpiryField = document.getElementById('insuranceExpiryDate');
     
-    if (insuranceEffectiveField && !insuranceEffectiveField.closest(`#${EXTENSION_ID}-container`)) {
-        // Set effective date to tomorrow
-        const effectiveDate = new Date();
-        effectiveDate.setDate(effectiveDate.getDate() + 1);
-        
-        const year = effectiveDate.getFullYear();
-        const month = String(effectiveDate.getMonth() + 1).padStart(2, '0');
-        const day = String(effectiveDate.getDate()).padStart(2, '0');
-        insuranceEffectiveField.value = `${year}-${month}-${day}`;
-        
-        // Trigger events
-        insuranceEffectiveField.dispatchEvent(new Event('input', { bubbles: true }));
-        insuranceEffectiveField.dispatchEvent(new Event('change', { bubbles: true }));
-        highlightField(insuranceEffectiveField);
-        filledFields++;
-        console.log('Filled insuranceEffectiveDate with:', insuranceEffectiveField.value);
-    }
+    // For new message.content structure, only fill these dates if they weren't explicitly provided
+    const shouldFillInsuranceDates = !fieldMappings || 
+                                   (!fieldMappings.hasOwnProperty('insuranceEffectiveDate') && 
+                                    !fieldMappings.hasOwnProperty('insuranceExpiryDate'));
     
-    if (insuranceExpiryField && !insuranceExpiryField.closest(`#${EXTENSION_ID}-container`)) {
-        // Set expiry date to tomorrow + 1 year
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 1);
-        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    if (shouldFillInsuranceDates) {
+        if (insuranceEffectiveField && !insuranceEffectiveField.closest(`#${EXTENSION_ID}-container`) && !insuranceEffectiveField.value) {
+            // Set effective date to tomorrow
+            const effectiveDate = new Date();
+            effectiveDate.setDate(effectiveDate.getDate() + 1);
+            
+            const year = effectiveDate.getFullYear();
+            const month = String(effectiveDate.getMonth() + 1).padStart(2, '0');
+            const day = String(effectiveDate.getDate()).padStart(2, '0');
+            insuranceEffectiveField.value = `${month}-${day}-${year}`;
+            
+            // Store the value for protection
+            const effectiveValue = insuranceEffectiveField.value;
+            insuranceEffectiveField.dataset.intellifillValue = effectiveValue;
+            
+            // Trigger events with protection
+            highlightField(insuranceEffectiveField);
+            setTimeout(() => {
+                if (insuranceEffectiveField.value !== effectiveValue) {
+                    insuranceEffectiveField.value = effectiveValue;
+                }
+                try {
+                    insuranceEffectiveField.dispatchEvent(new Event('input', { bubbles: true }));
+                    setTimeout(() => {
+                        insuranceEffectiveField.dispatchEvent(new Event('change', { bubbles: true }));
+                    }, 100);
+                } catch (e) {
+                    console.log('Error triggering events for insuranceEffectiveDate:', e);
+                }
+            }, 50);
+            
+            filledFields++;
+            console.log('Filled insuranceEffectiveDate with:', effectiveValue);
+        }
         
-        const year = expiryDate.getFullYear();
-        const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-        const day = String(expiryDate.getDate()).padStart(2, '0');
-        insuranceExpiryField.value = `${year}-${month}-${day}`;
-        
-        // Trigger events
-        insuranceExpiryField.dispatchEvent(new Event('input', { bubbles: true }));
-        insuranceExpiryField.dispatchEvent(new Event('change', { bubbles: true }));
-        highlightField(insuranceExpiryField);
-        filledFields++;
-        console.log('Filled insuranceExpiryDate with:', insuranceExpiryField.value);
+        if (insuranceExpiryField && !insuranceExpiryField.closest(`#${EXTENSION_ID}-container`) && !insuranceExpiryField.value) {
+            // Set expiry date to tomorrow + 1 year
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 1);
+            expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+            
+            const year = expiryDate.getFullYear();
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            insuranceExpiryField.value = `${month}-${day}-${year}`;
+            
+            // Store the value for protection
+            const expiryValue = insuranceExpiryField.value;
+            insuranceExpiryField.dataset.intellifillValue = expiryValue;
+            
+            // Trigger events with protection
+            highlightField(insuranceExpiryField);
+            setTimeout(() => {
+                if (insuranceExpiryField.value !== expiryValue) {
+                    insuranceExpiryField.value = expiryValue;
+                }
+                try {
+                    insuranceExpiryField.dispatchEvent(new Event('input', { bubbles: true }));
+                    setTimeout(() => {
+                        insuranceExpiryField.dispatchEvent(new Event('change', { bubbles: true }));
+                    }, 100);
+                } catch (e) {
+                    console.log('Error triggering events for insuranceExpiryDate:', e);
+                }
+            }, 50);
+            
+            filledFields++;
+            console.log('Filled insuranceExpiryDate with:', expiryValue);
+        }
     }
     
     // Additional pass: Look for other insurance date fields that might not have been mapped
-    const allDateInputs = document.querySelectorAll('input[type="date"]');
-    for (const dateInput of allDateInputs) {
-        // Skip if this is part of the extension panel
-        if (dateInput.closest(`#${EXTENSION_ID}-container`)) continue;
-        
-        // Skip if this is one of the specific fields we already handled
-        if (dateInput.id === 'insuranceEffectiveDate' || dateInput.id === 'insuranceExpiryDate') continue;
-        
-        const fieldName = (dateInput.name || dateInput.id || '').toLowerCase();
-        const isInsuranceDate = fieldName.includes('insurance') || fieldName.includes('coverage') || fieldName.includes('policy');
-        const isEffective = fieldName.includes('effective') || fieldName.includes('start') || 
-                           fieldName.includes('begin') || fieldName.includes('commence');
-        const isExpiry = fieldName.includes('expir') || fieldName.includes('end') || 
-                        fieldName.includes('termination') || fieldName.includes('finish');
-        
-        if (isInsuranceDate && (isEffective || isExpiry) && !dateInput.value) {
-            let targetDate;
+    // Only do this for legacy mode or if using new mode but dates weren't provided
+    if (shouldFillInsuranceDates) {
+        const allDateInputs = document.querySelectorAll('input[type="date"]');
+        for (const dateInput of allDateInputs) {
+            // Skip if this is part of the extension panel
+            if (dateInput.closest(`#${EXTENSION_ID}-container`)) continue;
             
-            if (isEffective) {
-                // Set effective date to tomorrow
-                targetDate = new Date();
-                targetDate.setDate(targetDate.getDate() + 1);
-            } else if (isExpiry) {
-                // Set expiry date to tomorrow + 1 year
-                targetDate = new Date();
-                targetDate.setDate(targetDate.getDate() + 1);
-                targetDate.setFullYear(targetDate.getFullYear() + 1);
-            }
+            // Skip if this is one of the specific fields we already handled
+            if (dateInput.id === 'insuranceEffectiveDate' || dateInput.id === 'insuranceExpiryDate') continue;
             
-            if (targetDate) {
-                const year = targetDate.getFullYear();
-                const month = String(targetDate.getMonth() + 1).padStart(2, '0');
-                const day = String(targetDate.getDate()).padStart(2, '0');
-                dateInput.value = `${year}-${month}-${day}`;
+            // Skip if this field was already filled by direct mapping (new mode)
+            if (fieldMappings && (dateInput.id in fieldMappings || dateInput.name in fieldMappings)) continue;
+            
+            const fieldName = (dateInput.name || dateInput.id || '').toLowerCase();
+            const isInsuranceDate = fieldName.includes('insurance') || fieldName.includes('coverage') || fieldName.includes('policy');
+            const isEffective = fieldName.includes('effective') || fieldName.includes('start') || 
+                               fieldName.includes('begin') || fieldName.includes('commence');
+            const isExpiry = fieldName.includes('expir') || fieldName.includes('end') || 
+                            fieldName.includes('termination') || fieldName.includes('finish');
+            
+            if (isInsuranceDate && (isEffective || isExpiry) && !dateInput.value) {
+                let targetDate;
                 
-                // Trigger events
-                dateInput.dispatchEvent(new Event('input', { bubbles: true }));
-                dateInput.dispatchEvent(new Event('change', { bubbles: true }));
-                highlightField(dateInput);
-                filledFields++;
+                if (isEffective) {
+                    // Set effective date to tomorrow
+                    targetDate = new Date();
+                    targetDate.setDate(targetDate.getDate() + 1);
+                } else if (isExpiry) {
+                    // Set expiry date to tomorrow + 1 year
+                    targetDate = new Date();
+                    targetDate.setDate(targetDate.getDate() + 1);
+                    targetDate.setFullYear(targetDate.getFullYear() + 1);
+                }
+                
+                if (targetDate) {
+                    const year = targetDate.getFullYear();
+                    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(targetDate.getDate()).padStart(2, '0');
+                    dateInput.value = `${month}-${day}-${year}`;
+                    
+                    // Store the value for protection
+                    const dateValue = dateInput.value;
+                    dateInput.dataset.intellifillValue = dateValue;
+                    
+                    // Trigger events with protection
+                    highlightField(dateInput);
+                    setTimeout(() => {
+                        if (dateInput.value !== dateValue) {
+                            dateInput.value = dateValue;
+                        }
+                        try {
+                            dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            setTimeout(() => {
+                                dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+                            }, 100);
+                        } catch (e) {
+                            console.log('Error triggering events for date field:', e);
+                        }
+                    }, 50);
+                    
+                    filledFields++;
+                }
             }
         }
     }
@@ -934,6 +1423,17 @@ function findFormElementAdvanced(key, value, fieldMappings) {
         if (element && !isExtensionElement(element)) return element;
     }
     
+    // 1.5. Try radio buttons specifically
+    const radioSelector = `input[type="radio"][name="${key}"]`;
+    const radioGroup = document.querySelectorAll(radioSelector);
+    if (radioGroup.length > 0) {
+        const firstRadio = Array.from(radioGroup).find(r => !isExtensionElement(r));
+        if (firstRadio) {
+            console.log(`Found radio group for ${key} in legacy mapping`);
+            return firstRadio;
+        }
+    }
+    
     // 2. Try mapped field names
     const mappedFields = fieldMappings[key] || [];
     for (const mappedField of mappedFields) {
@@ -952,6 +1452,17 @@ function findFormElementAdvanced(key, value, fieldMappings) {
             element = document.querySelector(selector);
             if (element && !isExtensionElement(element)) return element;
         }
+        
+        // Also try radio buttons for mapped fields
+        const mappedRadioSelector = `input[type="radio"][name="${mappedField}"]`;
+        const mappedRadioGroup = document.querySelectorAll(mappedRadioSelector);
+        if (mappedRadioGroup.length > 0) {
+            const firstMappedRadio = Array.from(mappedRadioGroup).find(r => !isExtensionElement(r));
+            if (firstMappedRadio) {
+                console.log(`Found radio group for mapped field ${mappedField}`);
+                return firstMappedRadio;
+            }
+        }
     }
     
     return null;
@@ -968,6 +1479,13 @@ function fillField(element, value) {
         switch (type) {
             case 'radio':
                 success = fillRadioButtonAdvanced(element, value);
+                // For radio buttons, find the actually checked radio for event triggering
+                if (success) {
+                    const checkedRadio = document.querySelector(`input[type="radio"][name="${element.name}"]:checked`);
+                    if (checkedRadio) {
+                        element = checkedRadio; // Update element reference to the checked radio
+                    }
+                }
                 break;
                 
             case 'checkbox':
@@ -1013,13 +1531,66 @@ function fillField(element, value) {
         }
         
         if (success) {
-            // Trigger events to ensure form validation and updates
-            element.dispatchEvent(new Event('input', { bubbles: true }));
-            element.dispatchEvent(new Event('change', { bubbles: true }));
-            element.dispatchEvent(new Event('blur', { bubbles: true }));
+            // Store the value to protect against clearing
+            const filledValue = element.value;
+            element.dataset.intellifillValue = filledValue;
             
-            // Visual feedback
+            // Visual feedback first
             highlightField(element);
+            
+            // Trigger events with a small delay to avoid conflicts with page JavaScript
+            setTimeout(() => {
+                // Check if value was cleared and restore if needed
+                if (element.value !== filledValue) {
+                    console.log(`Value was cleared for ${element.name || element.id}, restoring:`, filledValue);
+                    element.value = filledValue;
+                }
+                
+                // Trigger events more carefully
+                try {
+                    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                } catch (e) {
+                    console.log('Error triggering input event:', e);
+                }
+                
+                setTimeout(() => {
+                    try {
+                        element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    } catch (e) {
+                        console.log('Error triggering change event:', e);
+                    }
+                }, 100);
+                
+            }, 50);
+            
+            // Add protection against value clearing
+            const protectValue = () => {
+                if (element.value === '' && element.dataset.intellifillValue) {
+                    console.log(`Protecting field ${element.name || element.id} from being cleared`);
+                    element.value = element.dataset.intellifillValue;
+                }
+            };
+            
+            // Monitor for value clearing for a short period
+            const protectionInterval = setInterval(() => {
+                protectValue();
+            }, 200);
+            
+            // Add user interaction handlers to stop protection
+            const stopProtection = () => {
+                clearInterval(protectionInterval);
+                element.removeAttribute('data-intellifill-value');
+                element.removeEventListener('focus', stopProtection);
+                element.removeEventListener('click', stopProtection);
+                element.removeEventListener('keydown', stopProtection);
+            };
+            
+            element.addEventListener('focus', stopProtection, { once: true });
+            element.addEventListener('click', stopProtection, { once: true });
+            element.addEventListener('keydown', stopProtection, { once: true });
+            
+            // Stop protection after 5 seconds regardless
+            setTimeout(stopProtection, 5000);
         }
         
         return success;
@@ -1031,20 +1602,113 @@ function fillField(element, value) {
 
 // Enhanced helper functions for specific field types
 function fillRadioButtonAdvanced(element, value) {
-    const radioGroup = document.querySelectorAll(`input[name="${element.name}"]`);
+    const radioGroup = document.querySelectorAll(`input[type="radio"][name="${element.name}"]`);
+    console.log(`Radio group for ${element.name}:`, Array.from(radioGroup).map(r => ({ value: r.value, id: r.id })));
     
+    if (radioGroup.length === 0) {
+        console.log(`No radio group found for name: ${element.name}`);
+        return false;
+    }
+    
+    // First, uncheck all radios in the group
+    radioGroup.forEach(radio => {
+        radio.checked = false;
+    });
+    
+    const valueStr = value.toString().toLowerCase().trim();
+    console.log(`Looking for radio value: "${valueStr}"`);
+    
+    // Supported input values:
+    // YES values: "yes", "Y", "y", true, "true", "1" 
+    // NO values: "no", "N", "n", false, "false", "0"
+    // Or any exact/partial match with radio button values/labels
+    
+    // Try different matching strategies
     for (const radio of radioGroup) {
-        const radioValue = radio.value.toLowerCase();
-        const valueStr = value.toString().toLowerCase();
+        if (radio.closest(`#${EXTENSION_ID}-container`)) continue; // Skip extension radios
         
-        if (radioValue === valueStr || 
-            (value === true && (radioValue === 'yes' || radioValue === 'true' || radioValue === '1')) ||
-            (value === false && (radioValue === 'no' || radioValue === 'false' || radioValue === '0'))) {
+        const radioValue = radio.value.toLowerCase().trim();
+        const radioId = (radio.id || '').toLowerCase();
+        const radioLabel = getRadioLabel(radio);
+        
+        console.log(`Checking radio: value="${radioValue}", id="${radioId}", label="${radioLabel}"`);
+        
+        // Strategy 1: Exact value match
+        if (radioValue === valueStr) {
+            console.log(`✓ Exact match found for: ${radioValue}`);
+            radio.checked = true;
+            return true;
+        }
+        
+        // Strategy 2: Boolean/Yes-No value matching
+        // Handle "yes", "Y", true, "1" values
+        if (value === true || valueStr === 'true' || valueStr === '1' || 
+            valueStr === 'yes' || valueStr === 'y') {
+            if (radioValue === 'yes' || radioValue === 'true' || radioValue === '1' || 
+                radioValue === 'y' || radioId.includes('yes') || radioLabel.includes('yes') ||
+                radioLabel.includes('y ') || radioLabel.startsWith('y ') || radioLabel.endsWith(' y')) {
+                console.log(`✓ YES/TRUE match found for: ${radioValue} (input: ${valueStr})`);
+                radio.checked = true;
+                return true;
+            }
+        }
+        
+        // Handle "no", "N", false, "0" values  
+        if (value === false || valueStr === 'false' || valueStr === '0' || 
+            valueStr === 'no' || valueStr === 'n') {
+            if (radioValue === 'no' || radioValue === 'false' || radioValue === '0' || 
+                radioValue === 'n' || radioId.includes('no') || radioLabel.includes('no') ||
+                radioLabel.includes('n ') || radioLabel.startsWith('n ') || radioLabel.endsWith(' n')) {
+                console.log(`✓ NO/FALSE match found for: ${radioValue} (input: ${valueStr})`);
+                radio.checked = true;
+                return true;
+            }
+        }
+        
+        // Strategy 3: Partial value matching
+        if (radioValue.includes(valueStr) || valueStr.includes(radioValue)) {
+            console.log(`✓ Partial match found for: ${radioValue}`);
+            radio.checked = true;
+            return true;
+        }
+        
+        // Strategy 4: Label text matching
+        if (radioLabel && (radioLabel.includes(valueStr) || valueStr.includes(radioLabel))) {
+            console.log(`✓ Label match found for: ${radioLabel}`);
             radio.checked = true;
             return true;
         }
     }
+    
+    console.log(`✗ No radio match found for value: "${valueStr}"`);
     return false;
+}
+
+// Helper function to get radio button label text
+function getRadioLabel(radioElement) {
+    // Try to find associated label
+    if (radioElement.id) {
+        const label = document.querySelector(`label[for="${radioElement.id}"]`);
+        if (label) return label.textContent.toLowerCase().trim();
+    }
+    
+    // Try to find parent label
+    const parentLabel = radioElement.closest('label');
+    if (parentLabel) return parentLabel.textContent.toLowerCase().trim();
+    
+    // Try to find following text/label
+    let sibling = radioElement.nextSibling;
+    while (sibling) {
+        if (sibling.nodeType === 3) { // Text node
+            const text = sibling.textContent.trim();
+            if (text) return text.toLowerCase();
+        } else if (sibling.tagName === 'LABEL' || sibling.tagName === 'SPAN') {
+            return sibling.textContent.toLowerCase().trim();
+        }
+        sibling = sibling.nextSibling;
+    }
+    
+    return '';
 }
 
 function fillCheckboxAdvanced(element, value) {
@@ -1067,7 +1731,7 @@ function fillDateFieldAdvanced(element, value) {
             const year = targetDate.getFullYear();
             const month = String(targetDate.getMonth() + 1).padStart(2, '0');
             const day = String(targetDate.getDate()).padStart(2, '0');
-            element.value = `${year}-${month}-${day}`;
+            element.value = `${month}-${day}-${year}`;
             return true;
         }
         
@@ -1080,7 +1744,7 @@ function fillDateFieldAdvanced(element, value) {
             const year = targetDate.getFullYear();
             const month = String(targetDate.getMonth() + 1).padStart(2, '0');
             const day = String(targetDate.getDate()).padStart(2, '0');
-            element.value = `${year}-${month}-${day}`;
+            element.value = `${month}-${day}-${year}`;
             return true;
         }
         
@@ -1111,7 +1775,18 @@ function fillDateFieldAdvanced(element, value) {
             const year = targetDate.getFullYear();
             const month = String(targetDate.getMonth() + 1).padStart(2, '0');
             const day = String(targetDate.getDate()).padStart(2, '0');
-            element.value = `${year}-${month}-${day}`;
+            
+            // Check if this is an insurance-related date field
+            const fieldName = (element.name || element.id || '').toLowerCase();
+            const isInsuranceField = fieldName.includes('insurance') || fieldName.includes('coverage') || fieldName.includes('policy');
+            
+            if (isInsuranceField) {
+                // Use mm-dd-yyyy format for insurance fields
+                element.value = `${month}-${day}-${year}`;
+            } else {
+                // Use yyyy-mm-dd format for other date fields
+                element.value = `${year}-${month}-${day}`;
+            }
             return true;
         }
     } catch (error) {
@@ -1199,24 +1874,32 @@ function highlightField(element) {
     // Add marker to track highlighted fields
     element.dataset.intellifillHighlighted = 'true';
     
-    // Remove highlight on user interaction
+    // Remove highlight on meaningful user interaction (with delay to avoid conflicts)
     const removeHighlight = () => {
-        element.style.backgroundColor = element.dataset.originalBackground;
-        element.style.border = element.dataset.originalBorder;
-        element.removeAttribute('data-intellifill-highlighted');
-        element.removeAttribute('data-original-background');
-        element.removeAttribute('data-original-border');
-        
-        // Remove event listeners
-        element.removeEventListener('input', removeHighlight);
-        element.removeEventListener('change', removeHighlight);
-        element.removeEventListener('focus', removeHighlight);
+        setTimeout(() => {
+            element.style.backgroundColor = element.dataset.originalBackground;
+            element.style.border = element.dataset.originalBorder;
+            element.removeAttribute('data-intellifill-highlighted');
+            element.removeAttribute('data-original-background');
+            element.removeAttribute('data-original-border');
+        }, 100);
     };
     
-    // Add event listeners to remove highlight on user interaction
-    element.addEventListener('input', removeHighlight, { once: true });
-    element.addEventListener('change', removeHighlight, { once: true });
-    element.addEventListener('focus', removeHighlight, { once: true });
+    // Add event listeners to remove highlight on user interaction (with delays)
+    element.addEventListener('keydown', removeHighlight, { once: true });
+    element.addEventListener('paste', removeHighlight, { once: true });
+    
+    // Remove highlight after manual typing (not just focus)
+    let userTyped = false;
+    element.addEventListener('input', (e) => {
+        if (userTyped) {
+            removeHighlight();
+        }
+    }, { once: true });
+    
+    element.addEventListener('keydown', () => {
+        userTyped = true;
+    }, { once: true });
 }
 
 // Show notification on the page
