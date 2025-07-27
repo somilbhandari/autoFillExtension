@@ -6,11 +6,11 @@ const EXTENSION_ID = 'n8n-form-autofiller';
 // const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
 // const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
 
-const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
-const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/954484f2-69e7-40e0-b666-361b97415359';
+// const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/bf6cecd5-7efe-48a6-98d9-777f1976cfeb';
+// const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/bf6cecd5-7efe-48a6-98d9-777f1976cfeb';
 
-// const N8N_WEBHOOK_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
-// const N8N_POLL_URL = 'https://somil.app.n8n.cloud/webhook-test/14591d83-e679-486d-a00e-1ab2e05e9894';
+const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook/954484f2-69e7-40e0-b666-361b97415359';
+const N8N_POLL_URL = 'https://cf-omega.app.n8n.cloud/webhook/954484f2-69e7-40e0-b666-361b97415359';
 
 
 // const N8N_WEBHOOK_URL = 'https://cf-omega.app.n8n.cloud/webhook-test/8d59f19b-8c40-4359-ba67-3551a75384b3';
@@ -231,12 +231,8 @@ function setupEventListeners(floatingBtn, slidingPanel) {
         closeSlidePanel(slidingPanel);
     });
     
-    // Close panel when clicking outside
-    document.addEventListener('click', (e) => {
-        if (isSlideOpen && !slidingPanel.contains(e.target) && !floatingBtn.contains(e.target)) {
-            closeSlidePanel(slidingPanel);
-        }
-    });
+    // Panel now only closes via X button - removed auto-close on outside click
+    // This ensures the panel stays open when user clicks on webpage elements
     
     // Super Paste button click - combines both process and autofill
     superPasteBtn.addEventListener('click', () => {
@@ -334,10 +330,125 @@ function loadSavedData() {
     });
 }
 
+// Function to trigger dropdown option loading by simulating clicks
+async function waitForDropdownsToLoad() {
+    console.log('🔄 Triggering dropdown option loading...');
+    
+    // Temporarily add CSS to prevent visual dropdown opening/closing
+    const invisibleStyle = document.createElement('style');
+    invisibleStyle.id = 'intellifill-invisible-dropdowns';
+    invisibleStyle.textContent = `
+        .ant-select-dropdown,
+        .rc-select-dropdown,
+        .ant-dropdown,
+        select[data-intellifill-loading] {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+    `;
+    document.head.appendChild(invisibleStyle);
+    
+    // Find all dropdowns that might need option loading
+    const dropdowns = document.querySelectorAll('select:not([id*="intellifill"]), .ant-select:not([id*="intellifill"])');
+    console.log(`Found ${dropdowns.length} potential dropdowns to trigger`);
+    
+    for (let i = 0; i < dropdowns.length; i++) {
+        const dropdown = dropdowns[i];
+        
+        // Skip extension dropdowns
+        if (dropdown.closest(`#${EXTENSION_ID}-container`)) continue;
+        
+        const dropdownName = dropdown.name || dropdown.id || dropdown.className || `dropdown-${i}`;
+        console.log(`🖱️ Triggering dropdown ${i + 1}/${dropdowns.length}: ${dropdownName}`);
+        
+        // Mark dropdown as being loaded (for CSS hiding)
+        dropdown.setAttribute('data-intellifill-loading', 'true');
+        
+        try {
+            // Check initial option count
+            const initialOptions = dropdown.tagName === 'SELECT' ? dropdown.options.length : 0;
+            console.log(`Initial options for ${dropdownName}: ${initialOptions}`);
+            
+            // Simulate user interaction to trigger option loading
+            if (dropdown.tagName === 'SELECT') {
+                // For native select elements
+                await simulateSelectInteraction(dropdown);
+            } else if (dropdown.classList.contains('ant-select')) {
+                // For Ant Design select components
+                await simulateAntSelectInteraction(dropdown);
+            }
+            
+            // Wait a bit for options to load
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Check if options were loaded
+            const finalOptions = dropdown.tagName === 'SELECT' ? dropdown.options.length : 
+                                dropdown.querySelectorAll('.ant-select-item-option, .rc-select-item-option').length;
+            
+            if (finalOptions > initialOptions) {
+                console.log(`✅ ${dropdownName}: Options loaded (${initialOptions} → ${finalOptions})`);
+            } else {
+                console.log(`ℹ️ ${dropdownName}: No change in options (${finalOptions})`);
+            }
+            
+        } catch (error) {
+            console.log(`⚠️ Error triggering ${dropdownName}:`, error.message);
+        } finally {
+            // Clean up the loading marker
+            dropdown.removeAttribute('data-intellifill-loading');
+        }
+    }
+    
+    // Remove the invisible style after processing
+    const styleElement = document.getElementById('intellifill-invisible-dropdowns');
+    if (styleElement) {
+        styleElement.remove();
+    }
+    
+    console.log('✅ Finished triggering all dropdowns');
+}
+
+// Simulate interaction with native select elements
+async function simulateSelectInteraction(selectElement) {
+    // Use more subtle event sequence to minimize visual impact
+    selectElement.dispatchEvent(new Event('focus', { bubbles: true }));
+    selectElement.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    
+    // Minimal wait
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Quick cleanup - use blur instead of more events
+    selectElement.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+// Simulate interaction with Ant Design select components  
+async function simulateAntSelectInteraction(antSelectElement) {
+    // Find the selector element (usually the clickable part)
+    const selector = antSelectElement.querySelector('.ant-select-selector') || antSelectElement;
+    
+    // More subtle event sequence to trigger option loading without visible opening
+    selector.dispatchEvent(new Event('focus', { bubbles: true }));
+    selector.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    
+    // Very brief wait for API call to be triggered
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Quick cleanup with minimal events
+    selector.dispatchEvent(new Event('blur', { bubbles: true }));
+    
+    // Send escape to ensure any invisible dropdown closes
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+}
+
 // Function to extract clean form content from the page
-function getCleanFormContent() {
+async function getCleanFormContent() {
     try {
         console.log('Starting form content extraction...');
+        
+        // Wait for any pending dropdowns to load their options
+        await waitForDropdownsToLoad();
+        
         const cleanContent = [];
         
         // First, try to find and process forms
@@ -433,7 +544,10 @@ function getCleanFormContent() {
             }
         }
         
-        const result = cleanContent.join('\n\n');
+        // Add a summary of form elements at the end for better AI context
+        const formSummary = generateFormElementSummary();
+        
+        const result = cleanContent.join('\n\n') + '\n\n' + formSummary;
         console.log(`Final page source length: ${result.length}`);
         console.log('Page source preview:', result.substring(0, 500) + '...');
         
@@ -472,6 +586,64 @@ function cleanElement(element) {
         console.log(`Removing ${extensionElements.length} extension elements`);
         extensionElements.forEach(el => el.remove());
         
+        // Enhance dropdown/select elements with option information
+        const selectElements = element.querySelectorAll('select');
+        selectElements.forEach(select => {
+            // Add a data attribute with all available options for better AI context
+            const options = Array.from(select.options).map(option => ({
+                value: option.value,
+                text: option.textContent.trim(),
+                selected: option.selected
+            }));
+            
+            if (options.length > 0) {
+                // Add comment with available options
+                const optionsComment = document.createComment(
+                    `SELECT OPTIONS for ${select.name || select.id}: ${JSON.stringify(options)}`
+                );
+                select.parentNode.insertBefore(optionsComment, select);
+                
+                // Also add data attribute for easier parsing
+                select.setAttribute('data-available-options', JSON.stringify(options));
+                
+                console.log(`Enhanced select element ${select.name || select.id} with ${options.length} options`);
+            }
+        });
+        
+        // Enhance radio button groups with option information
+        const radioGroups = {};
+        const radios = element.querySelectorAll('input[type="radio"]');
+        radios.forEach(radio => {
+            const groupName = radio.name || radio.closest('.ant-radio-group')?.id || 'unnamed';
+            if (!radioGroups[groupName]) {
+                radioGroups[groupName] = [];
+            }
+            
+            // Get label text for this radio
+            const label = getRadioLabel(radio);
+            radioGroups[groupName].push({
+                value: radio.value,
+                label: label,
+                checked: radio.checked,
+                id: radio.id
+            });
+        });
+        
+        // Add comments for radio groups
+        Object.entries(radioGroups).forEach(([groupName, options]) => {
+            if (options.length > 1) { // Only for actual groups
+                const firstRadio = element.querySelector(`input[type="radio"][name="${groupName}"]`) ||
+                                 element.querySelector(`#${groupName} input[type="radio"]`);
+                if (firstRadio) {
+                    const optionsComment = document.createComment(
+                        `RADIO OPTIONS for ${groupName}: ${JSON.stringify(options)}`
+                    );
+                    firstRadio.parentNode.insertBefore(optionsComment, firstRadio);
+                    console.log(`Enhanced radio group ${groupName} with ${options.length} options`);
+                }
+            }
+        });
+        
         // Minimal attribute cleaning - keep most attributes for now
         const allElements = element.querySelectorAll('*');
         allElements.forEach(el => {
@@ -505,6 +677,114 @@ function cleanElement(element) {
         // Return original if cleaning fails
         return element.outerHTML;
     }
+}
+
+// Generate a summary of all form elements for better AI understanding
+function generateFormElementSummary() {
+    const summary = ['<!-- FORM ELEMENTS SUMMARY FOR AI CONTEXT -->'];
+    
+    // Get all form elements
+    const inputs = document.querySelectorAll('input:not([id*="intellifill"]), textarea:not([id*="intellifill"]), select:not([id*="intellifill"])');
+    
+    const elementsByType = {
+        text: [],
+        email: [],
+        tel: [],
+        number: [],
+        date: [],
+        textarea: [],
+        select: [],
+        radio: [],
+        checkbox: []
+    };
+    
+    inputs.forEach(element => {
+        // Skip extension elements
+        if (element.closest(`#${EXTENSION_ID}-container`)) return;
+        
+        const type = element.type || element.tagName.toLowerCase();
+        const id = element.id;
+        const name = element.name;
+        const value = element.value;
+        const placeholder = element.placeholder;
+        
+        const elementInfo = {
+            id,
+            name,
+            value,
+            placeholder,
+            element
+        };
+        
+        // Categorize by type
+        if (type === 'text' || type === 'password') {
+            elementsByType.text.push(elementInfo);
+        } else if (type === 'email') {
+            elementsByType.email.push(elementInfo);
+        } else if (type === 'tel') {
+            elementsByType.tel.push(elementInfo);
+        } else if (type === 'number') {
+            elementsByType.number.push(elementInfo);
+        } else if (type === 'date') {
+            elementsByType.date.push(elementInfo);
+        } else if (type === 'textarea') {
+            elementsByType.textarea.push(elementInfo);
+        } else if (type === 'select-one' || type === 'select') {
+            const options = Array.from(element.options).map(opt => ({
+                value: opt.value,
+                text: opt.textContent.trim(),
+                selected: opt.selected
+            }));
+            elementsByType.select.push({...elementInfo, options});
+        } else if (type === 'radio') {
+            const label = getRadioLabel(element);
+            elementsByType.radio.push({...elementInfo, label, checked: element.checked});
+        } else if (type === 'checkbox') {
+            elementsByType.checkbox.push({...elementInfo, checked: element.checked});
+        }
+    });
+    
+    // Generate summary for each type
+    Object.entries(elementsByType).forEach(([type, elements]) => {
+        if (elements.length > 0) {
+            summary.push(`\n<!-- ${type.toUpperCase()} FIELDS (${elements.length}) -->`);
+            elements.forEach(elem => {
+                let line = `${elem.id || elem.name || 'unnamed'} (${type})`;
+                if (elem.placeholder) line += ` - placeholder: "${elem.placeholder}"`;
+                if (elem.value) line += ` - current: "${elem.value}"`;
+                
+                if (type === 'select' && elem.options) {
+                    line += ` - options: ${elem.options.map(opt => `"${opt.text}" (${opt.value})`).join(', ')}`;
+                } else if (type === 'radio') {
+                    line += ` - label: "${elem.label}", value: "${elem.value}", checked: ${elem.checked}`;
+                } else if (type === 'checkbox') {
+                    line += ` - checked: ${elem.checked}`;
+                }
+                
+                summary.push(`<!-- ${line} -->`);
+            });
+        }
+    });
+    
+    // Group radio buttons by name/group
+    const radioGroups = {};
+    elementsByType.radio.forEach(radio => {
+        const groupName = radio.name || radio.element.closest('.ant-radio-group')?.id || 'unnamed';
+        if (!radioGroups[groupName]) radioGroups[groupName] = [];
+        radioGroups[groupName].push(radio);
+    });
+    
+    if (Object.keys(radioGroups).length > 0) {
+        summary.push('\n<!-- RADIO BUTTON GROUPS -->');
+        Object.entries(radioGroups).forEach(([groupName, radios]) => {
+            if (radios.length > 1) {
+                const options = radios.map(r => `"${r.label}" (${r.value}, checked: ${r.checked})`).join(', ');
+                summary.push(`<!-- Group "${groupName}": ${options} -->`);
+            }
+        });
+    }
+    
+    return summary.join('\n');
 }
 
 // Combined function to process data and autofill form
@@ -567,7 +847,7 @@ async function processAndAutofill() {
         }
         
         // Add the cleaned form content from the current page
-        requestBody.pageSource = getCleanFormContent();
+        requestBody.pageSource = await getCleanFormContent();
         
         const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -731,7 +1011,7 @@ async function processData() {
         }
         
         // Add the cleaned form content from the current page
-        requestBody.pageSource = getCleanFormContent();
+        requestBody.pageSource = await getCleanFormContent();
         
         const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -1631,6 +1911,8 @@ function fillField(element, value) {
             const filledValue = element.value;
             element.dataset.intellifillValue = filledValue;
             
+            console.log(`🛡️ Starting protection for ${element.tagName.toLowerCase()} ${element.name || element.id} with value: "${filledValue}"`);
+            
             // Visual feedback first
             highlightField(element);
             
@@ -1674,37 +1956,85 @@ function fillField(element, value) {
                 
             }, initialDelay);
             
-            // Add protection against value clearing
+            // Enhanced protection against value clearing
             const protectValue = () => {
-                if ((element.value === '' || element.selectedIndex === -1) && element.dataset.intellifillValue) {
-                    console.log(`Protecting ${element.tagName.toLowerCase()} ${element.name || element.id} from being cleared`);
-                    element.value = element.dataset.intellifillValue;
+                if (!element.dataset.intellifillValue) return; // No value to protect
+                
+                const isSelectElement = element.tagName.toLowerCase() === 'select';
+                const currentValue = element.value;
+                const expectedValue = element.dataset.intellifillValue;
+                
+                // Check if value was cleared or reset
+                const isCleared = currentValue === '' || currentValue === null || 
+                                 (isSelectElement && (element.selectedIndex === -1 || element.selectedIndex === 0));
+                
+                if (isCleared && expectedValue !== '') {
+                    console.log(`🛡️ Protecting ${element.tagName.toLowerCase()} ${element.name || element.id} - restoring value: "${expectedValue}"`);
                     
-                    // For select elements, also dispatch change event after restoration
-                    if (element.tagName.toLowerCase() === 'select') {
+                    // Restore the value
+                    element.value = expectedValue;
+                    
+                    // For select elements, ensure the correct option is selected
+                    if (isSelectElement) {
+                        const options = Array.from(element.options);
+                        const targetOption = options.find(opt => opt.value === expectedValue);
+                        if (targetOption) {
+                            targetOption.selected = true;
+                            element.selectedIndex = targetOption.index;
+                        }
+                        
+                        // Notify framework of the change
                         setTimeout(() => {
                             try {
                                 element.dispatchEvent(new Event('change', { bubbles: true }));
+                                element.dispatchEvent(new Event('input', { bubbles: true }));
                             } catch (e) {
-                                console.log('Error triggering change event during protection:', e);
+                                console.log('Error triggering events during protection:', e);
                             }
                         }, 10);
                     }
                 }
             };
             
-            // Monitor for value clearing - more frequently for select elements
+            // Monitor for value clearing - much more aggressively for select elements
             const isSelectElement = element.tagName.toLowerCase() === 'select';
-            const monitorInterval = isSelectElement ? 100 : 200; // Check select elements more frequently
-            const protectionDuration = isSelectElement ? 8000 : 5000; // Protect select elements longer
+            const monitorInterval = isSelectElement ? 50 : 200; // Check select elements very frequently (50ms)
+            const protectionDuration = isSelectElement ? 15000 : 5000; // Protect select elements much longer (15 seconds)
             
             const protectionInterval = setInterval(() => {
                 protectValue();
             }, monitorInterval);
             
+            // Additional protection: Listen for framework-triggered events that might clear values
+            if (isSelectElement) {
+                // Monitor for any programmatic changes that might clear the select
+                mutationObserver = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+                            // Value attribute changed programmatically
+                            setTimeout(protectValue, 10);
+                        } else if (mutation.type === 'childList') {
+                            // Options might have been modified
+                            setTimeout(protectValue, 10);
+                        }
+                    });
+                });
+                
+                mutationObserver.observe(element, {
+                    attributes: true,
+                    childList: true,
+                    attributeFilter: ['value', 'selected']
+                });
+            }
+            
             // Add user interaction handlers to stop protection
+            let mutationObserver = null;
+            
             const stopProtection = () => {
                 clearInterval(protectionInterval);
+                if (mutationObserver) {
+                    mutationObserver.disconnect();
+                }
                 element.removeAttribute('data-intellifill-value');
                 element.removeEventListener('focus', stopProtection);
                 element.removeEventListener('mousedown', stopProtection);
@@ -1716,19 +2046,72 @@ function fillField(element, value) {
             
             // For select elements, be more careful about when to stop protection
             const userChangeHandler = (e) => {
-                // Only stop protection if user manually changed the value to something different
-                if (e.isTrusted && element.value !== element.dataset.intellifillValue) {
-                    console.log(`User manually changed select value, stopping protection`);
+                const expectedValue = element.dataset.intellifillValue;
+                const currentValue = element.value;
+                
+                // Check if this is a genuine user change vs framework interference
+                const isUserChange = e.isTrusted && 
+                                   currentValue !== expectedValue && 
+                                   currentValue !== '' && 
+                                   currentValue !== null &&
+                                   e.target === element; // User directly interacted with THIS element
+                
+                if (isUserChange) {
+                    console.log(`👤 User manually changed select value from "${expectedValue}" to "${currentValue}", stopping protection`);
                     stopProtection();
+                } else if (currentValue !== expectedValue) {
+                    // Value was changed by framework - restore it aggressively
+                    console.log(`🔄 Framework changed select value from "${expectedValue}" to "${currentValue}", restoring immediately`);
+                    
+                    // Prevent infinite loops by temporarily removing the listener
+                    element.removeEventListener('change', userChangeHandler);
+                    
+                    // Restore the value
+                    element.value = expectedValue;
+                    
+                    // For select elements, ensure correct option selection
+                    const options = Array.from(element.options);
+                    const targetOption = options.find(opt => opt.value === expectedValue);
+                    if (targetOption) {
+                        targetOption.selected = true;
+                        element.selectedIndex = targetOption.index;
+                    }
+                    
+                    // Re-add the listener after a brief delay
+                    setTimeout(() => {
+                        element.addEventListener('change', userChangeHandler);
+                    }, 50);
                 }
             };
             
-            element.addEventListener('focus', stopProtection, { once: true });
-            element.addEventListener('mousedown', stopProtection, { once: true }); // Use mousedown instead of click for select
-            element.addEventListener('keydown', stopProtection, { once: true });
-            
+            // Only stop protection when user directly interacts with THIS specific element
             if (isSelectElement) {
+                // For select elements, be very conservative about stopping protection
                 element.addEventListener('change', userChangeHandler);
+                // Only stop on direct keyboard interaction with THIS select
+                element.addEventListener('keydown', (e) => {
+                    if (e.target === element) {
+                        console.log(`Direct keyboard interaction with select ${element.name || element.id}, stopping protection`);
+                        stopProtection();
+                    }
+                }, { once: true });
+            } else {
+                // For non-select elements, stop on direct interaction
+                element.addEventListener('focus', (e) => {
+                    if (e.target === element) {
+                        stopProtection();
+                    }
+                }, { once: true });
+                element.addEventListener('mousedown', (e) => {
+                    if (e.target === element) {
+                        stopProtection();
+                    }
+                }, { once: true });
+                element.addEventListener('keydown', (e) => {
+                    if (e.target === element) {
+                        stopProtection();
+                    }
+                }, { once: true });
             }
             
             // Stop protection after specified duration
