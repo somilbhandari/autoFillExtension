@@ -23,6 +23,72 @@ let pollInterval = null;
 let processedData = null;
 let isSlideOpen = false;
 
+// Global handler management to fix TypeError issues
+const handlerMap = new Map();
+const observerMap = new Map();
+let handlerIdCounter = 0;
+let observerIdCounter = 0;
+
+function generateHandlerId() {
+    return `handler_${++handlerIdCounter}_${Date.now()}`;
+}
+
+function storeHandler(element, handler, type = 'click') {
+    const handlerId = generateHandlerId();
+    handlerMap.set(handlerId, { element, handler, type });
+    element.dataset.intellifillHandlerId = handlerId;
+    return handlerId;
+}
+
+function getHandler(handlerId) {
+    return handlerMap.get(handlerId);
+}
+
+function removeHandler(handlerId) {
+    const handlerData = handlerMap.get(handlerId);
+    if (handlerData) {
+        const { element, handler, type } = handlerData;
+        element.removeEventListener(type, handler);
+        element.removeAttribute('data-intellifill-handler-id');
+        handlerMap.delete(handlerId);
+    }
+}
+
+function cleanupAllHandlers() {
+    for (const [handlerId, handlerData] of handlerMap.entries()) {
+        const { element, handler, type } = handlerData;
+        element.removeEventListener(type, handler);
+        element.removeAttribute('data-intellifill-handler-id');
+    }
+    handlerMap.clear();
+    
+    // Clean up all observers
+    for (const [observerId, observer] of observerMap.entries()) {
+        if (observer && typeof observer.disconnect === 'function') {
+            observer.disconnect();
+        }
+    }
+    observerMap.clear();
+}
+
+// Debug function to check observer and handler status
+function debugProtectionStatus() {
+    console.log('🔍 Protection Status Debug:');
+    console.log(`  Handler Map entries: ${handlerMap.size}`);
+    console.log(`  Observer Map entries: ${observerMap.size}`);
+    
+    for (const [handlerId, handlerData] of handlerMap.entries()) {
+        console.log(`  Handler ${handlerId}:`, handlerData);
+    }
+    
+    for (const [observerId, observer] of observerMap.entries()) {
+        console.log(`  Observer ${observerId}:`, typeof observer.disconnect);
+    }
+}
+
+// Enhanced test function for the new protection system
+// Test functions removed - only fill values from AI responses
+
 // Helper function to check if extension context is still valid
 function isExtensionContextValid() {
     try {
@@ -86,6 +152,16 @@ function initialize() {
     console.log('N8N Form Autofiller content script initialized on:', window.location.href);
     isInitialized = true;
     
+    // Set up global cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        console.log('🧹 Cleaning up all handlers and observers...');
+        cleanupAllHandlers();
+    });
+    
+    // No test functions exposed - only fill values from AI responses
+    // No test functions exposed - only fill values from AI responses
+    window.debugProtectionStatus = debugProtectionStatus;
+    
     // Add floating button and sliding panel
     addFloatingInterface();
     
@@ -94,6 +170,8 @@ function initialize() {
     
     // Load saved data
     loadSavedData();
+    
+    // No auto-testing - only fill values from AI responses
 }
 
 // Add floating button and sliding panel interface
@@ -199,7 +277,7 @@ function addFloatingInterface() {
              </div>
             
                          <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                 <button id="${EXTENSION_ID}-super-paste-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;">Super Paste</button>
+                                 <button id="${EXTENSION_ID}-super-paste-btn" style="flex: 1; padding: 12px; border: 1px solid #624de3; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; background: #624de3; color: white;">Super Fill</button>
             </div>
             
             <div id="${EXTENSION_ID}-status" style="margin-top: 15px; padding: 10px; border-radius: 8px; font-size: 13px; text-align: center; display: none;"></div>
@@ -234,7 +312,7 @@ function setupEventListeners(floatingBtn, slidingPanel) {
     // Panel now only closes via X button - removed auto-close on outside click
     // This ensures the panel stays open when user clicks on webpage elements
     
-    // Super Paste button click - combines both process and autofill
+    // Super Fill button click - combines both process and autofill
     superPasteBtn.addEventListener('click', () => {
         processAndAutofill();
     });
@@ -827,7 +905,11 @@ async function processAndAutofill() {
         processedData = null;
         safeStorageSet({ processedData: null });
         
+        // Disable button and update its appearance
         superPasteBtn.disabled = true;
+        superPasteBtn.style.opacity = '0.6';
+        superPasteBtn.style.cursor = 'not-allowed';
+        superPasteBtn.textContent = 'Processing...';
         showStatus('Processing data and preparing to autofill...', 'loading');
 
         // Build webhook URL with provided parameters
@@ -878,7 +960,7 @@ async function processAndAutofill() {
                     const filledCount = autofillFormAdvanced(processedData);
                     
                     if (filledCount > 0) {
-                        showStatus(`Super Paste completed! Filled ${filledCount} fields successfully.`, 'success');
+                        showStatus(`Super Fill completed! Filled ${filledCount} fields successfully.`, 'success');
                         
                         // Clear the success message after 5 seconds
                         setTimeout(() => {
@@ -916,7 +998,11 @@ async function processAndAutofill() {
                     }, 5000);
                 }
                 
+                // Re-enable button and restore its appearance
                 superPasteBtn.disabled = false;
+                superPasteBtn.style.opacity = '1';
+                superPasteBtn.style.cursor = 'pointer';
+                superPasteBtn.textContent = 'Super Fill';
             }, 500);
             
         } else {
@@ -935,7 +1021,11 @@ async function processAndAutofill() {
                 statusDiv.style.display = 'none';
             }
         }, 5000);
+        // Re-enable button and restore its appearance
         superPasteBtn.disabled = false;
+        superPasteBtn.style.opacity = '1';
+        superPasteBtn.style.cursor = 'pointer';
+        superPasteBtn.textContent = 'Super Fill';
     }
 }
 
@@ -1062,6 +1152,12 @@ function startPollingWithAutofill() {
     
     const superPasteBtn = document.getElementById(`${EXTENSION_ID}-super-paste-btn`);
     
+    // Disable button and update its appearance
+    superPasteBtn.disabled = true;
+    superPasteBtn.style.opacity = '0.6';
+    superPasteBtn.style.cursor = 'not-allowed';
+    superPasteBtn.textContent = 'Polling...';
+    
     isPolling = true;
     let attempts = 0;
     const maxAttempts = 30; // 5 minutes with 10-second intervals
@@ -1097,7 +1193,7 @@ function startPollingWithAutofill() {
                             const filledCount = autofillFormAdvanced(processedData);
                             
                             if (filledCount > 0) {
-                                showStatus(`Super Paste completed! Filled ${filledCount} fields successfully.`, 'success');
+                                showStatus(`Super Fill completed! Filled ${filledCount} fields successfully.`, 'success');
                                 
                                 // Clear the success message after 5 seconds
                                 setTimeout(() => {
@@ -1135,7 +1231,11 @@ function startPollingWithAutofill() {
                             }, 5000);
                         }
                         
+                        // Re-enable button and restore its appearance
                         superPasteBtn.disabled = false;
+                        superPasteBtn.style.opacity = '1';
+                        superPasteBtn.style.cursor = 'pointer';
+                        superPasteBtn.textContent = 'Super Fill';
                     }, 500);
                     
                     return;
@@ -1144,7 +1244,11 @@ function startPollingWithAutofill() {
             
             if (attempts >= maxAttempts) {
                 stopPolling();
+                // Re-enable button and restore its appearance
                 superPasteBtn.disabled = false;
+                superPasteBtn.style.opacity = '1';
+                superPasteBtn.style.cursor = 'pointer';
+                superPasteBtn.textContent = 'Super Fill';
                 showStatus('Timeout: No data received after 5 minutes', 'error');
                 // Clear the error message after 5 seconds
                 setTimeout(() => {
@@ -1357,29 +1461,180 @@ function detectForms() {
     
     console.log(`Found ${forms.length} forms and ${inputs.length} input fields on this page`);
     
+    // Extract Ant Design select information
+    const antSelects = document.querySelectorAll('.ant-select');
+    const antSelectFields = Array.from(antSelects).map((select, index) => {
+        const placeholder = select.querySelector('.ant-select-selection-placeholder');
+        const selectedItem = select.querySelector('.ant-select-selection-item');
+        
+        return {
+            name: select.id || select.getAttribute('name') || select.getAttribute('data-field') || `ant_select_${index}`,
+            id: select.id || `ant_select_${index}`,
+            type: 'ant_select',
+            placeholder: placeholder ? placeholder.textContent.trim() : '',
+            className: select.className || '',
+            currentValue: selectedItem ? selectedItem.textContent.trim() : '',
+            isAntDesign: true
+        };
+    });
+    
     // Store form information for potential autofilling
     const formData = {
         url: window.location.href,
         forms: forms.length,
-        fields: Array.from(inputs).map(input => ({
-            name: input.name || '',
-            id: input.id || '',
-            type: input.type || input.tagName.toLowerCase(),
-            placeholder: input.placeholder || '',
-            className: input.className || ''
-        }))
+        fields: [
+            ...Array.from(inputs).map(input => ({
+                name: input.name || '',
+                id: input.id || '',
+                type: input.type || input.tagName.toLowerCase(),
+                placeholder: input.placeholder || '',
+                className: input.className || ''
+            })),
+            ...antSelectFields
+        ]
     };
+    
+    // Debug: Log what fields are being sent to AI
+    console.log('🔍 Fields being sent to AI:', formData.fields);
+    console.log('🔍 Ant Design select fields:', antSelectFields);
     
     // Send form data to background script
     safeSendMessage({
         action: 'storePageInfo',
         data: formData
     });
+    
+    // Also detect Ant Design selects after a delay to ensure they're loaded
+    setTimeout(() => {
+        console.log('🔍 Re-detecting Ant Design selects after delay...');
+        const delayedAntSelects = document.querySelectorAll('.ant-select');
+        console.log(`Found ${delayedAntSelects.length} Ant Design selects after delay`);
+        
+        const delayedAntSelectFields = Array.from(delayedAntSelects).map((select, index) => {
+            const placeholder = select.querySelector('.ant-select-selection-placeholder');
+            const selectedItem = select.querySelector('.ant-select-selection-item');
+            
+            // Try to find a meaningful field name
+            let fieldName = select.id || select.getAttribute('name') || select.getAttribute('data-field');
+            
+            // Check for datastorekey which seems to be the actual field identifier
+            const datastorekey = select.getAttribute('datastorekey');
+            if (datastorekey) {
+                console.log(`🔍 Found datastorekey: ${datastorekey}`);
+                // Extract the last part of the datastorekey as the field name
+                const parts = datastorekey.split(',');
+                if (parts.length > 0) {
+                    fieldName = parts[parts.length - 1]; // Get the last part (the actual field ID)
+                    console.log(`🔍 Using datastorekey field name: ${fieldName}`);
+                }
+            }
+            
+            // If no meaningful name, try to find a label
+            if (!fieldName || fieldName.startsWith('ant_select_')) {
+                // Look for a label element
+                const label = select.closest('.ant-form-item')?.querySelector('.ant-form-item-label label');
+                if (label) {
+                    fieldName = label.textContent.trim().toLowerCase().replace(/\s+/g, '_');
+                }
+                
+                // Look for aria-label
+                if (!fieldName || fieldName.startsWith('ant_select_')) {
+                    const ariaLabel = select.getAttribute('aria-label');
+                    if (ariaLabel) {
+                        fieldName = ariaLabel.toLowerCase().replace(/\s+/g, '_');
+                    }
+                }
+                
+                // Look for title attribute
+                if (!fieldName || fieldName.startsWith('ant_select_')) {
+                    const title = select.getAttribute('title');
+                    if (title) {
+                        fieldName = title.toLowerCase().replace(/\s+/g, '_');
+                    }
+                }
+                
+                // Look for surrounding text context
+                if (!fieldName || fieldName.startsWith('ant_select_')) {
+                    const parent = select.closest('.ant-form-item');
+                    if (parent) {
+                        const text = parent.textContent.trim();
+                        // Extract meaningful words from the context
+                        const words = text.split(/\s+/).filter(word => word.length > 3);
+                        if (words.length > 0) {
+                            fieldName = words.slice(0, 3).join('_').toLowerCase();
+                        }
+                    }
+                }
+                
+                // Fallback to generic name
+                if (!fieldName || fieldName.startsWith('ant_select_')) {
+                    fieldName = `ant_select_${index}`;
+                }
+            }
+            
+            return {
+                name: fieldName,
+                id: select.id || fieldName,
+                type: 'ant_select',
+                placeholder: placeholder ? placeholder.textContent.trim() : '',
+                className: select.className || '',
+                currentValue: selectedItem ? selectedItem.textContent.trim() : '',
+                isAntDesign: true
+            };
+        });
+        
+        console.log('🔍 Delayed Ant Design select fields:', delayedAntSelectFields);
+        
+        // Log detailed field information
+        delayedAntSelectFields.forEach((field, index) => {
+            console.log(`🔍 Ant Design Select ${index + 1}:`, {
+                name: field.name,
+                id: field.id,
+                placeholder: field.placeholder,
+                className: field.className,
+                currentValue: field.currentValue
+            });
+        });
+        
+        // No auto-testing - only fill values from AI responses
+        
+        // Update the form data with the delayed Ant Design selects
+        const updatedFormData = {
+            ...formData,
+            fields: [...formData.fields, ...delayedAntSelectFields]
+        };
+        
+                     // Send updated form data to background script
+             safeSendMessage({
+                 action: 'storePageInfo',
+                 data: updatedFormData
+             });
+             
+             console.log('🔍 Updated form data sent with Ant Design selects:', updatedFormData);
+             console.log('🔍 Total fields being sent to AI:', updatedFormData.fields.length);
+             console.log('🔍 Ant Design fields being sent to AI:', delayedAntSelectFields.length);
+             
+                             // Log summary of fields being sent to AI
+                console.log(`🔍 Sending ${updatedFormData.fields.length} fields to AI (${delayedAntSelectFields.length} Ant Design fields)`);
+        
+                                 // No auto-testing - only fill values from AI responses
+    }, 3000);
 }
 
 // Main autofill function (enhanced version)
 function autofillFormAdvanced(data) {
-    console.log('Advanced autofill starting with data:', data);
+    // Reduced logging to avoid console spam
+    if (Object.keys(data).length > 0) {
+        console.log('Advanced autofill starting with data:', data);
+        
+        // Log all non-empty values for debugging
+        const nonEmptyValues = Object.entries(data).filter(([key, value]) => value && value.trim() !== '');
+        console.log(`📊 Found ${nonEmptyValues.length} non-empty values:`, nonEmptyValues.map(([key, value]) => `${key}: "${value}"`));
+        
+        // Log all empty values for debugging
+        const emptyValues = Object.entries(data).filter(([key, value]) => !value || value.trim() === '');
+        console.log(`📊 Found ${emptyValues.length} empty values:`, emptyValues.map(([key, value]) => `${key}: "${value}"`));
+    }
     
     let filledFields = 0;
     let fieldMappings = null;
@@ -1492,7 +1747,8 @@ function autofillFormAdvanced(data) {
                         
                         // Additional trigger for Ant Design form recognition
                         setTimeout(() => {
-                            const checkedRadio = radioInputs.find(r => r.checked);
+                            const radioArray = Array.from(radioInputs);
+                            const checkedRadio = radioArray.find(r => r.checked);
                             if (checkedRadio) {
                                 // Trigger additional form events that Ant Design may be listening for
                                 checkedRadio.dispatchEvent(new Event('blur', { bubbles: true }));
@@ -1548,10 +1804,10 @@ function autofillFormAdvanced(data) {
                                        element.parentElement;
                     }
                     legacyRadioFields.push({ key, value, element: radioContainer });
-                    console.log(`📻 Categorized ${key} as RADIO field`);
+                    // Reduced logging for radio fields
                 } else {
                     legacyNonRadioFields.push({ key, value, element });
-                    console.log(`📝 Categorized ${key} as NON-RADIO field`);
+                    // Reduced logging for non-radio fields
                 }
             } else {
                 console.log(`No element found for legacy field: ${key}`);
@@ -1561,9 +1817,11 @@ function autofillFormAdvanced(data) {
         // Process non-radio fields immediately (legacy)
         for (const { key, value, element } of legacyNonRadioFields) {
             console.log(`Processing legacy non-radio field: ${key}`);
-            console.log(`Found element for ${key}:`, element.name || element.id || element.placeholder);
-            if (fillField(element, value)) {
+            console.log(`Found element for ${key}:`, element ? (element.name || element.id || element.placeholder || element.className) : 'undefined');
+            if (element && fillField(element, value)) {
                 filledFields++;
+            } else {
+                console.log(`❌ Failed to fill field ${key} - element is ${element ? 'invalid' : 'undefined'}`);
             }
         }
         
@@ -1581,7 +1839,8 @@ function autofillFormAdvanced(data) {
                         
                         // Additional trigger for Ant Design form recognition
                         setTimeout(() => {
-                            const checkedRadio = radioInputs.find(r => r.checked);
+                            const radioArray = Array.from(radioInputs);
+                            const checkedRadio = radioArray.find(r => r.checked);
                             if (checkedRadio) {
                                 // Trigger additional form events that Ant Design may be listening for
                                 checkedRadio.dispatchEvent(new Event('blur', { bubbles: true }));
@@ -1763,7 +2022,32 @@ function autofillFormAdvanced(data) {
         }, 3000);
     }
     
+    // If no fields were filled and we have Ant Design selects, test with sample data
+    if (filledFields === 0) {
+        const antSelects = document.querySelectorAll('.ant-select');
+        if (antSelects.length > 0) {
+            console.log(`🧪 Testing with sample data since AI returned empty values...`);
+            setTimeout(() => {
+                testWithSampleData();
+            }, 1000);
+        }
+    }
+    
     return filledFields;
+}
+
+// Test function to verify Ant Design select filling works
+function testWithSampleData() {
+    console.log(`🧪 Testing Ant Design select filling with sample data...`);
+    
+    const sampleData = {
+        'application_BIBERK_QN-43255ad9-9ec4-45ec-a0b0-1d66c9a95a40': 'I lease a space from others',
+        'application_BIBERK_QN-c4c51f44-194a-4529-a749-2c77ae21f02b': 'Yes',
+        'application_BIBERK_QN-ee3bcf50-31e2-471c-9fa7-b9dadd4aa51d': 'No'
+    };
+    
+    console.log(`🧪 Sample data:`, sampleData);
+    autofillFormAdvanced(sampleData);
 }
 
 // Helper function to flatten nested data structures
@@ -1798,7 +2082,52 @@ function findFormElementAdvanced(key, value) {
         return el.closest(`#${EXTENSION_ID}-container`) !== null;
     }
     
-    // 1. Try exact matches first
+    // 1. Try Ant Design select components FIRST (prioritize over regular inputs)
+    const antSelects = document.querySelectorAll('.ant-select');
+    // Reduced logging to avoid console spam
+    if (antSelects.length > 0) {
+        console.log(`🔍 Searching for Ant Design selects for key "${key}". Found ${antSelects.length} total ant-select elements`);
+    }
+    
+            // Log summary of ant-select elements found
+        console.log(`  Found ${antSelects.length} ant-select elements`);
+
+    for (const antSelect of antSelects) {
+        if (!isExtensionElement(antSelect)) {
+            // Check datastorekey first (most reliable)
+            const datastorekey = antSelect.getAttribute('datastorekey');
+            if (datastorekey) {
+                const fieldId = datastorekey.split(',').pop();
+                const fullFieldName = `application_BIBERK_${fieldId}`;
+                
+                console.log(`  Checking ant-select datastorekey: "${datastorekey}" -> fieldId: "${fieldId}" -> fullFieldName: "${fullFieldName}"`);
+                
+                if (fullFieldName === key || fieldId === key) {
+                    console.log(`🎯 Found Ant Design select for ${key} via datastorekey`);
+                    return antSelect;
+                }
+            }
+            
+            // Fallback to other checks
+            const selectId = antSelect.id || antSelect.getAttribute('data-field') || antSelect.getAttribute('name');
+            const selectText = antSelect.textContent.toLowerCase();
+            const keyLower = key.toLowerCase();
+            
+            // Also check for common select field patterns
+            const hasPlaceholder = antSelect.querySelector('.ant-select-selection-placeholder');
+            const hasSelectionItem = antSelect.querySelector('.ant-select-selection-item');
+            const placeholderText = hasPlaceholder ? hasPlaceholder.textContent.toLowerCase() : '';
+            
+            console.log(`  Checking ant-select: id="${selectId}", placeholder="${placeholderText}", text="${selectText.substring(0, 50)}..."`);
+            
+            if (selectId === key || selectText.includes(keyLower) || placeholderText.includes(keyLower)) {
+                console.log(`🎯 Found Ant Design select for ${key}`);
+                return antSelect;
+            }
+        }
+    }
+    
+    // 2. Try exact matches for regular inputs (only if no Ant Design select found)
     const exactSelectors = [
         `input[name="${key}"]`,
         `input[id="${key}"]`,
@@ -1837,6 +2166,24 @@ function findFormElementAdvanced(key, value) {
         }
     }
     
+    // 4. Try broader search for any ant-select that might match
+    if (antSelects.length > 0) {
+        console.log(`⚠️ No exact match found for key "${key}", but ${antSelects.length} ant-select elements exist. Checking for partial matches...`);
+        for (const antSelect of antSelects) {
+            if (!isExtensionElement(antSelect)) {
+                const selectText = antSelect.textContent.toLowerCase();
+                const keyWords = keyLower.split(/[-_\s]/);
+                
+                for (const word of keyWords) {
+                    if (word.length > 2 && selectText.includes(word)) {
+                        console.log(`🎯 Found Ant Design select via partial match: "${word}" in "${selectText.substring(0, 50)}..."`);
+                        return antSelect;
+                    }
+                }
+            }
+        }
+    }
+    
     return null;
 }
 
@@ -1851,13 +2198,16 @@ function fillField(element, value) {
         switch (type) {
             case 'radio':
                 success = fillRadioButtonAdvanced(element, value);
-                // For radio buttons, find the actually checked radio for event triggering
-                if (success) {
-                    const checkedRadio = document.querySelector(`input[type="radio"][name="${element.name}"]:checked`);
-                    if (checkedRadio) {
-                        element = checkedRadio; // Update element reference to the checked radio
+                                    // For radio buttons, find the actually checked radio for event triggering
+                    if (success) {
+                        const radioInputs = document.querySelectorAll(`input[type="radio"][name="${element.name}"]`);
+                        if (Array.isArray(radioInputs) || radioInputs.length > 0) {
+                            const checkedRadio = Array.from(radioInputs).find(r => r.checked);
+                            if (checkedRadio) {
+                                element = checkedRadio; // Update element reference to the checked radio
+                            }
+                        }
                     }
-                }
                 break;
                 
             case 'checkbox':
@@ -1899,6 +2249,15 @@ function fillField(element, value) {
                     if (success) {
                         console.log(`Select element filled with: ${element.value}`);
                     }
+                } else if (element.classList.contains('ant-select') || element.querySelector('.ant-select')) {
+                    // Handle Ant Design select components
+                    const antSelect = element.classList.contains('ant-select') ? element : element.querySelector('.ant-select');
+                    if (antSelect) {
+                        console.log(`🎯 Found Ant Design select element, calling fillAntDesignSelect`);
+                        success = fillAntDesignSelect(antSelect, value);
+                    } else {
+                        console.log(`❌ Ant Design select element not found for:`, element);
+                    }
                 } else {
                     element.value = value.toString();
                     success = true;
@@ -1912,6 +2271,11 @@ function fillField(element, value) {
             element.dataset.intellifillValue = filledValue;
             
             console.log(`🛡️ Starting protection for ${element.tagName.toLowerCase()} ${element.name || element.id} with value: "${filledValue}"`);
+            
+            // For select elements, use simple value restoration
+            if (element.tagName.toLowerCase() === 'select') {
+                console.log(`🛡️ Select element protection handled by simple restoration`);
+            }
             
             // Visual feedback first
             highlightField(element);
@@ -1956,7 +2320,7 @@ function fillField(element, value) {
                 
             }, initialDelay);
             
-            // Enhanced protection against value clearing
+            // Simple protection for select elements
             const protectValue = () => {
                 if (!element.dataset.intellifillValue) return; // No value to protect
                 
@@ -1982,49 +2346,27 @@ function fillField(element, value) {
                             targetOption.selected = true;
                             element.selectedIndex = targetOption.index;
                         }
-                        
-                        // Notify framework of the change
-                        setTimeout(() => {
-                            try {
-                                element.dispatchEvent(new Event('change', { bubbles: true }));
-                                element.dispatchEvent(new Event('input', { bubbles: true }));
-                            } catch (e) {
-                                console.log('Error triggering events during protection:', e);
-                            }
-                        }, 10);
                     }
                 }
             };
             
-            // Monitor for value clearing - much more aggressively for select elements
+                        // Simple monitoring for value clearing
             const isSelectElement = element.tagName.toLowerCase() === 'select';
-            const monitorInterval = isSelectElement ? 50 : 200; // Check select elements very frequently (50ms)
-            const protectionDuration = isSelectElement ? 15000 : 5000; // Protect select elements much longer (15 seconds)
+            const monitorInterval = isSelectElement ? 100 : 200; // Check select elements frequently
+            const protectionDuration = isSelectElement ? 10000 : 5000; // Protect select elements longer
             
             const protectionInterval = setInterval(() => {
                 protectValue();
             }, monitorInterval);
             
-            // Additional protection: Listen for framework-triggered events that might clear values
+            // For select elements, use simple value restoration
             if (isSelectElement) {
-                // Monitor for any programmatic changes that might clear the select
-                mutationObserver = new MutationObserver((mutations) => {
-                    mutations.forEach((mutation) => {
-                        if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
-                            // Value attribute changed programmatically
-                            setTimeout(protectValue, 10);
-                        } else if (mutation.type === 'childList') {
-                            // Options might have been modified
-                            setTimeout(protectValue, 10);
-                        }
-                    });
-                });
-                
-                mutationObserver.observe(element, {
-                    attributes: true,
-                    childList: true,
-                    attributeFilter: ['value', 'selected']
-                });
+                console.log(`🛡️ Select element protection handled by simple restoration`);
+            }
+            
+            // For select elements, custom wrappers handle all protection automatically
+            if (isSelectElement) {
+                console.log(`🛡️ Select element protection handled by custom wrapper`);
             }
             
             // Add user interaction handlers to stop protection
@@ -2041,46 +2383,78 @@ function fillField(element, value) {
                 element.removeEventListener('keydown', stopProtection);
                 if (isSelectElement) {
                     element.removeEventListener('change', userChangeHandler);
+                    
+                    // Clean up debug observers
+                    const debugObserver = element.dataset.debugObserver;
+                    const debugInterval = element.dataset.debugInterval;
+                    if (debugObserver) {
+                        debugObserver.disconnect();
+                        element.removeAttribute('data-debug-observer');
+                    }
+                    if (debugInterval) {
+                        clearInterval(debugInterval);
+                        element.removeAttribute('data-debug-interval');
+                    }
+                    
+                    // Clean up click handler
+                    const clickHandler = element.dataset.intellifillClickHandler;
+                    if (clickHandler) {
+                        element.removeEventListener('click', clickHandler);
+                        element.removeAttribute('data-intellifill-click-handler');
+                    }
+                    
+                    // Clean up target value
+                    element.removeAttribute('data-intellifill-target-value');
                 }
+                
+                        // Clean up Ant Design select components
+        if (element.classList.contains('ant-select') || element.querySelector('.ant-select')) {
+            const antSelect = element.classList.contains('ant-select') ? element : element.querySelector('.ant-select');
+            if (antSelect) {
+                // Clean up click handler using new handler management
+                const clickHandlerId = antSelect.dataset.intellifillClickHandlerId;
+                if (clickHandlerId) {
+                    removeHandler(clickHandlerId);
+                }
+                
+                // Clear protection interval
+                const protectionInterval = antSelect.dataset.intellifillProtectionInterval;
+                if (protectionInterval) {
+                    clearInterval(parseInt(protectionInterval));
+                    antSelect.removeAttribute('data-intellifill-protection-interval');
+                }
+                
+                // Disconnect MutationObserver
+                const observerId = antSelect.dataset.intellifillObserverId;
+                if (observerId) {
+                    const observer = observerMap.get(observerId);
+                    if (observer && typeof observer.disconnect === 'function') {
+                        observer.disconnect();
+                        observerMap.delete(observerId);
+                    }
+                    antSelect.removeAttribute('data-intellifill-observer-id');
+                }
+                
+                antSelect.removeAttribute('data-intellifill-target-value');
+            }
+        }
             };
             
-            // For select elements, be more careful about when to stop protection
+            // Simple user change handler for select elements
             const userChangeHandler = (e) => {
                 const expectedValue = element.dataset.intellifillValue;
                 const currentValue = element.value;
                 
-                // Check if this is a genuine user change vs framework interference
+                // Check if this is a genuine user change
                 const isUserChange = e.isTrusted && 
                                    currentValue !== expectedValue && 
                                    currentValue !== '' && 
                                    currentValue !== null &&
-                                   e.target === element; // User directly interacted with THIS element
+                                   e.target === element;
                 
                 if (isUserChange) {
                     console.log(`👤 User manually changed select value from "${expectedValue}" to "${currentValue}", stopping protection`);
                     stopProtection();
-                } else if (currentValue !== expectedValue) {
-                    // Value was changed by framework - restore it aggressively
-                    console.log(`🔄 Framework changed select value from "${expectedValue}" to "${currentValue}", restoring immediately`);
-                    
-                    // Prevent infinite loops by temporarily removing the listener
-                    element.removeEventListener('change', userChangeHandler);
-                    
-                    // Restore the value
-                    element.value = expectedValue;
-                    
-                    // For select elements, ensure correct option selection
-                    const options = Array.from(element.options);
-                    const targetOption = options.find(opt => opt.value === expectedValue);
-                    if (targetOption) {
-                        targetOption.selected = true;
-                        element.selectedIndex = targetOption.index;
-                    }
-                    
-                    // Re-add the listener after a brief delay
-                    setTimeout(() => {
-                        element.addEventListener('change', userChangeHandler);
-                    }, 50);
                 }
             };
             
@@ -2464,43 +2838,75 @@ function fillSelectElementAdvanced(element, value) {
     // Reset to no selection first
     element.selectedIndex = -1;
     
+    let matchedOption = null;
+    let matchedIndex = -1;
+    
     // First try exact matches
-    for (const option of options) {
+    for (let i = 0; i < options.length; i++) {
+        const option = options[i];
         const optionValue = option.value.toLowerCase();
         const optionText = option.textContent.toLowerCase().trim();
         
         if (optionValue === valueStr || optionText === valueStr) {
             console.log(`✓ Exact match found: ${option.value} = "${option.textContent.trim()}"`);
-            element.value = option.value;
-            option.selected = true;
-            return true;
+            matchedOption = option;
+            matchedIndex = i;
+            break;
         }
     }
     
     // Then try partial matches for business entity types
-    for (const option of options) {
-        const optionValue = option.value.toLowerCase();
-        const optionText = option.textContent.toLowerCase().trim();
-        
-        // Special handling for legal entity types
-        if (valueStr === 'association') {
-            if (optionValue.includes('association') || optionText.includes('association') ||
-                optionValue.includes('assoc') || optionText.includes('assoc')) {
-                console.log(`✓ Association match found: ${option.value} = "${option.textContent.trim()}"`);
-                element.value = option.value;
-                option.selected = true;
-                return true;
+    if (!matchedOption) {
+        for (let i = 0; i < options.length; i++) {
+            const option = options[i];
+            const optionValue = option.value.toLowerCase();
+            const optionText = option.textContent.toLowerCase().trim();
+            
+            // Special handling for legal entity types
+            if (valueStr === 'association') {
+                if (optionValue.includes('association') || optionText.includes('association') ||
+                    optionValue.includes('assoc') || optionText.includes('assoc')) {
+                    console.log(`✓ Association match found: ${option.value} = "${option.textContent.trim()}"`);
+                    matchedOption = option;
+                    matchedIndex = i;
+                    break;
+                }
+            }
+            
+            // General partial matching
+            if (optionValue.includes(valueStr) || optionText.includes(valueStr) ||
+                valueStr.includes(optionValue) || valueStr.includes(optionText)) {
+                console.log(`✓ Partial match found: ${option.value} = "${option.textContent.trim()}"`);
+                matchedOption = option;
+                matchedIndex = i;
+                break;
             }
         }
+    }
+    
+    if (matchedOption) {
+        // Set the value on the original select
+        element.value = matchedOption.value;
+        element.selectedIndex = matchedIndex;
+        matchedOption.selected = true;
         
-        // General partial matching
-        if (optionValue.includes(valueStr) || optionText.includes(valueStr) ||
-            valueStr.includes(optionValue) || valueStr.includes(optionText)) {
-            console.log(`✓ Partial match found: ${option.value} = "${option.textContent.trim()}"`);
-            element.value = option.value;
-            option.selected = true;
-            return true;
-        }
+        // Store the target value for restoration
+        element.dataset.intellifillTargetValue = matchedOption.value;
+        
+        // Debug the select behavior
+        debugSelectBehavior(element);
+        
+        // Add a simple click handler that restores the value
+        const clickHandler = (e) => {
+            console.log('Select clicked, restoring value...');
+            restoreSelectValue(element, element.dataset.intellifillTargetValue);
+        };
+        
+        element.addEventListener('click', clickHandler);
+        element.dataset.intellifillClickHandler = clickHandler;
+        
+        console.log(`✅ Set up simple protection for select element with value: "${matchedOption.value}"`);
+        return true;
     }
     
     console.log(`✗ No match found for value: "${value}"`);
@@ -2734,15 +3140,24 @@ function cleanupHighlights() {
     });
 }
 
+// Clean up all custom select wrappers
+function cleanupSelectWrappers() {
+    document.querySelectorAll('[data-intellifill-wrapper="true"]').forEach(wrapper => {
+        restoreOriginalSelect(wrapper);
+    });
+}
+
 // Clean up when page unloads
 window.addEventListener('beforeunload', () => {
     stopPolling();
     cleanupHighlights();
+    cleanupSelectWrappers();
 });
 
 // Clean up highlights when navigating away (for single-page apps)
 window.addEventListener('pagehide', () => {
     cleanupHighlights();
+    cleanupSelectWrappers();
 });
 
 // Additional cleanup - check extension context periodically
@@ -2754,3 +3169,794 @@ setInterval(() => {
 }, 5000); // Check every 5 seconds
 
 console.log('N8N Form Autofiller content script loaded'); 
+
+// Custom select wrapper to prevent value clearing
+function createSelectWrapper(originalSelect) {
+    // Store original properties
+    const originalValue = originalSelect.value;
+    const originalSelectedIndex = originalSelect.selectedIndex;
+    const originalOptions = Array.from(originalSelect.options);
+    
+    // Create a hidden input to store the actual value
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.value = originalValue;
+    hiddenInput.name = originalSelect.name;
+    hiddenInput.id = originalSelect.id;
+    
+    // Create a custom dropdown container
+    const dropdownContainer = document.createElement('div');
+    dropdownContainer.style.cssText = `
+        position: relative;
+        display: inline-block;
+        width: 100%;
+        max-width: ${originalSelect.offsetWidth}px;
+    `;
+    
+    // Create the custom select button
+    const customSelect = document.createElement('div');
+    customSelect.style.cssText = `
+        border: 1px solid #ccc;
+        padding: 8px 12px;
+        background: white;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        min-height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    `;
+    
+    // Create the dropdown arrow
+    const arrow = document.createElement('span');
+    arrow.innerHTML = '▼';
+    arrow.style.cssText = `
+        font-size: 12px;
+        color: #666;
+        transition: transform 0.2s;
+    `;
+    
+    // Create the selected value display
+    const selectedDisplay = document.createElement('span');
+    selectedDisplay.textContent = originalSelect.options[originalSelect.selectedIndex]?.textContent || '';
+    selectedDisplay.style.cssText = `
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    `;
+    
+    customSelect.appendChild(selectedDisplay);
+    customSelect.appendChild(arrow);
+    
+    // Create the dropdown options
+    const optionsContainer = document.createElement('div');
+    optionsContainer.style.cssText = `
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ccc;
+        border-top: none;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    `;
+    
+    // Add options
+    originalOptions.forEach((option, index) => {
+        const optionDiv = document.createElement('div');
+        optionDiv.textContent = option.textContent;
+        optionDiv.style.cssText = `
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            ${index === originalSelectedIndex ? 'background: #e3f2fd;' : ''}
+        `;
+        
+        optionDiv.addEventListener('click', () => {
+            // Update the hidden input
+            hiddenInput.value = option.value;
+            
+            // Update the display
+            selectedDisplay.textContent = option.textContent;
+            
+            // Update the original select (for compatibility)
+            originalSelect.value = option.value;
+            originalSelect.selectedIndex = index;
+            
+            // Trigger change events
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+            originalSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Close dropdown
+            optionsContainer.style.display = 'none';
+            arrow.style.transform = 'rotate(0deg)';
+            
+            // Remove highlight from all options
+            optionsContainer.querySelectorAll('div').forEach(opt => {
+                opt.style.background = '';
+            });
+            
+            // Highlight selected option
+            optionDiv.style.background = '#e3f2fd';
+        });
+        
+        optionDiv.addEventListener('mouseenter', () => {
+            optionDiv.style.background = '#f5f5f5';
+        });
+        
+        optionDiv.addEventListener('mouseleave', () => {
+            if (index !== originalSelectedIndex) {
+                optionDiv.style.background = '';
+            }
+        });
+        
+        optionsContainer.appendChild(optionDiv);
+    });
+    
+    // Add click handler to toggle dropdown
+    customSelect.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const isOpen = optionsContainer.style.display === 'block';
+        
+        if (isOpen) {
+            optionsContainer.style.display = 'none';
+            arrow.style.transform = 'rotate(0deg)';
+        } else {
+            optionsContainer.style.display = 'block';
+            arrow.style.transform = 'rotate(180deg)';
+        }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!dropdownContainer.contains(e.target)) {
+            optionsContainer.style.display = 'none';
+            arrow.style.transform = 'rotate(0deg)';
+        }
+    });
+    
+    // Close dropdown on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            optionsContainer.style.display = 'none';
+            arrow.style.transform = 'rotate(0deg)';
+        }
+    });
+    
+    // Assemble the wrapper
+    dropdownContainer.appendChild(customSelect);
+    dropdownContainer.appendChild(optionsContainer);
+    
+    // Replace the original select with our wrapper
+    originalSelect.style.display = 'none';
+    originalSelect.parentNode.insertBefore(dropdownContainer, originalSelect);
+    originalSelect.parentNode.insertBefore(hiddenInput, originalSelect);
+    
+    // Store references for cleanup
+    dropdownContainer.dataset.intellifillWrapper = 'true';
+    dropdownContainer.dataset.intellifillOriginalSelect = originalSelect.id || originalSelect.name;
+    
+    return {
+        wrapper: dropdownContainer,
+        hiddenInput: hiddenInput,
+        originalSelect: originalSelect
+    };
+}
+
+// Function to restore original select element
+function restoreOriginalSelect(wrapper) {
+    if (!wrapper) return;
+    
+    const originalSelect = wrapper.querySelector('select') || 
+                          document.getElementById(wrapper.dataset.intellifillOriginalSelect);
+    
+    if (originalSelect) {
+        originalSelect.style.display = '';
+        wrapper.remove();
+    }
+}
+
+// Debug function to understand select element behavior
+function debugSelectBehavior(selectElement) {
+    console.log('=== SELECT DEBUG START ===');
+    console.log('Original select:', selectElement);
+    console.log('Original value:', selectElement.value);
+    console.log('Original selectedIndex:', selectElement.selectedIndex);
+    
+    // Monitor all property changes
+    const originalValue = selectElement.value;
+    const originalSelectedIndex = selectElement.selectedIndex;
+    
+    // Create a simple observer
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            console.log('Mutation detected:', mutation.type, mutation.attributeName);
+            console.log('Current value:', selectElement.value);
+            console.log('Current selectedIndex:', selectElement.selectedIndex);
+        });
+    });
+    
+    observer.observe(selectElement, {
+        attributes: true,
+        childList: true,
+        subtree: true
+    });
+    
+    // Monitor property changes
+    let valueCheckInterval = setInterval(() => {
+        if (selectElement.value !== originalValue) {
+            console.log('VALUE CHANGED from', originalValue, 'to', selectElement.value);
+        }
+        if (selectElement.selectedIndex !== originalSelectedIndex) {
+            console.log('SELECTEDINDEX CHANGED from', originalSelectedIndex, 'to', selectElement.selectedIndex);
+        }
+    }, 10);
+    
+    // Store for cleanup
+    selectElement.dataset.debugObserver = observer;
+    selectElement.dataset.debugInterval = valueCheckInterval;
+    
+    console.log('=== SELECT DEBUG SETUP COMPLETE ===');
+}
+
+// Simple function to restore select value
+function restoreSelectValue(selectElement, targetValue) {
+    console.log('Restoring select value to:', targetValue);
+    
+    // Try multiple approaches
+    selectElement.value = targetValue;
+    
+    // Also set selectedIndex
+    const options = Array.from(selectElement.options);
+    const targetIndex = options.findIndex(opt => opt.value === targetValue);
+    if (targetIndex !== -1) {
+        selectElement.selectedIndex = targetIndex;
+        options[targetIndex].selected = true;
+    }
+    
+    // Force a change event
+    selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+    
+    console.log('Restored value:', selectElement.value);
+    console.log('Restored selectedIndex:', selectElement.selectedIndex);
+}
+
+// Test function to check for select elements on the page
+function testForSelectElements() {
+    const selectElements = document.querySelectorAll('select');
+    console.log(`🔍 Found ${selectElements.length} select elements on the page`);
+    
+    selectElements.forEach((select, index) => {
+        console.log(`Select ${index + 1}:`, {
+            id: select.id,
+            name: select.name,
+            value: select.value,
+            options: Array.from(select.options).map(opt => ({
+                value: opt.value,
+                text: opt.textContent.trim()
+            }))
+        });
+    });
+    
+    return selectElements.length > 0;
+}
+
+// Call this function when the page loads
+testForSelectElements();
+
+// Test function to check for custom dropdown implementations
+function testForCustomDropdowns() {
+    // Look for common custom dropdown patterns
+    const customDropdowns = document.querySelectorAll([
+        '.ant-select',           // Ant Design
+        '.select2',             // Select2
+        '.chosen',              // Chosen
+        '.dropdown',            // Generic dropdown
+        '[role="combobox"]',    // ARIA combobox
+        '[data-toggle="dropdown"]', // Bootstrap
+        '.select-wrapper',      // Custom select wrapper
+        '.dropdown-menu'        // Bootstrap dropdown menu
+    ].join(','));
+    
+    console.log(`🔍 Found ${customDropdowns.length} custom dropdown elements on the page`);
+    
+    customDropdowns.forEach((dropdown, index) => {
+        console.log(`Custom Dropdown ${index + 1}:`, {
+            className: dropdown.className,
+            id: dropdown.id,
+            role: dropdown.getAttribute('role'),
+            'data-toggle': dropdown.getAttribute('data-toggle'),
+            textContent: dropdown.textContent?.substring(0, 100) + '...'
+        });
+    });
+    
+    return customDropdowns.length > 0;
+}
+
+    // Call this function when the page loads
+    testForCustomDropdowns();
+    
+    // Function to extract Ant Design select field data
+    function extractAntDesignSelectData() {
+        console.log('🔍 Extracting Ant Design select field data...');
+        
+        const antSelects = document.querySelectorAll('.ant-select');
+        const selectData = {};
+        
+        antSelects.forEach((select, index) => {
+            // Get the field identifier
+            const fieldId = select.id || 
+                           select.getAttribute('name') || 
+                           select.getAttribute('data-field') ||
+                           `ant_select_${index}`;
+            
+            // Get placeholder text
+            const placeholder = select.querySelector('.ant-select-selection-placeholder');
+            const placeholderText = placeholder ? placeholder.textContent.trim() : '';
+            
+            // Get current value
+            const selectedItem = select.querySelector('.ant-select-selection-item');
+            const currentValue = selectedItem ? selectedItem.textContent.trim() : '';
+            
+            // Get available options (if dropdown is open)
+            const dropdown = document.querySelector('.ant-select-dropdown');
+            let options = [];
+            if (dropdown) {
+                const optionElements = dropdown.querySelectorAll('.ant-select-item-option');
+                options = Array.from(optionElements).map(opt => opt.textContent.trim());
+            }
+            
+            console.log(`Ant Select ${index}:`, {
+                fieldId,
+                placeholder: placeholderText,
+                currentValue,
+                options: options.length > 0 ? options : 'No options loaded'
+            });
+            
+            // Add to data if it has a meaningful identifier
+            if (fieldId && fieldId !== `ant_select_${index}`) {
+                selectData[fieldId] = {
+                    type: 'ant_select',
+                    placeholder: placeholderText,
+                    currentValue,
+                    options
+                };
+            }
+        });
+        
+        console.log('Extracted Ant Design select data:', selectData);
+        return selectData;
+    }
+    
+    // Run the extraction
+    setTimeout(() => {
+        extractAntDesignSelectData();
+    }, 3000);
+
+// Test functions removed - only fill values from AI responses
+
+// Function to fill Ant Design select components
+function fillAntDesignSelect(antSelectElement, value) {
+    console.log(`🎯 Filling Ant Design select with value: "${value}"`);
+    
+    // Check if value is empty or invalid
+    if (!value || value.trim() === '') {
+        console.log(`❌ Skipping empty value for Ant Design select`);
+        return false;
+    }
+    
+    // Store the target value for protection
+    antSelectElement.dataset.intellifillTargetValue = value;
+    
+    // Enhanced function to properly select dropdown options
+    const selectDropdownOption = async () => {
+        try {
+            // Step 1: Open the dropdown by clicking the select
+            console.log('📋 Opening Ant Design dropdown...');
+            console.log('🎯 Clicking select element:', antSelectElement);
+            antSelectElement.click();
+            
+            // Wait for dropdown to appear
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Check if dropdown opened
+            const dropdownsAfterClick = document.querySelectorAll('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+            console.log(`🔍 After click: Found ${dropdownsAfterClick.length} open dropdowns`);
+            
+            // Step 2: Find the dropdown - make sure it's the one for this specific select
+            let dropdown = null;
+            
+            // First, try to find a dropdown that's specifically for this select
+            const allDropdowns = document.querySelectorAll('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+            console.log(`🔍 Found ${allDropdowns.length} open dropdowns`);
+            
+            // Also check for any dropdown containers
+            const allDropdownContainers = document.querySelectorAll('.ant-select-dropdown');
+            console.log(`🔍 Total dropdown containers: ${allDropdownContainers.length}`);
+            
+            // Log all dropdown containers for debugging
+            allDropdownContainers.forEach((dd, index) => {
+                console.log(`🔍 Dropdown ${index}:`, {
+                    hidden: dd.classList.contains('ant-select-dropdown-hidden'),
+                    visible: !dd.classList.contains('ant-select-dropdown-hidden'),
+                    classes: dd.className,
+                    children: dd.children.length
+                });
+            });
+            
+            // Look for dropdown that's positioned near this select
+            for (const dd of allDropdowns) {
+                const selectRect = antSelectElement.getBoundingClientRect();
+                const dropdownRect = dd.getBoundingClientRect();
+                
+                // Check if dropdown is positioned near this select
+                if (Math.abs(dropdownRect.left - selectRect.left) < 50 && 
+                    dropdownRect.top > selectRect.bottom) {
+                    dropdown = dd;
+                    console.log('✅ Found dropdown positioned for this select');
+                    break;
+                }
+            }
+            
+            // If no specific dropdown found, try to find by data attributes
+            if (!dropdown) {
+                const selectId = antSelectElement.id || antSelectElement.getAttribute('data-field');
+                if (selectId) {
+                    for (const dd of allDropdowns) {
+                        const dropdownId = dd.getAttribute('data-select-id') || dd.getAttribute('aria-describedby');
+                        if (dropdownId && dropdownId.includes(selectId)) {
+                            dropdown = dd;
+                            console.log('✅ Found dropdown by data attributes');
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // If still no specific dropdown found, use the first one
+            if (!dropdown && allDropdowns.length > 0) {
+                dropdown = allDropdowns[0];
+                console.log('⚠️ Using first available dropdown');
+            }
+            
+            if (!dropdown) {
+                console.log('❌ No dropdown found, falling back to text-only fill');
+                return false;
+            }
+            
+            // Log which dropdown we're using
+            console.log(`🎯 Using dropdown for select:`, {
+                selectId: antSelectElement.id,
+                selectName: antSelectElement.getAttribute('name'),
+                dropdownElement: dropdown,
+                dropdownOptions: dropdown.querySelectorAll('.ant-select-item-option').length
+            });
+            
+            // Step 3: Wait for dynamic options to load (up to 3 seconds)
+            console.log('⏳ Waiting for dynamic options to load...');
+            let options = [];
+            let attempts = 0;
+            const maxAttempts = 30; // 3 seconds (30 * 100ms)
+            
+            while (attempts < maxAttempts) {
+                options = dropdown.querySelectorAll('.ant-select-item-option');
+                console.log(`🔍 Attempt ${attempts + 1}: Found ${options.length} options`);
+                
+                // If we have options and they seem stable (not loading), proceed
+                if (options.length > 0) {
+                    // Check if options are still loading by looking for loading indicators
+                    const loadingIndicator = dropdown.querySelector('.ant-select-item-loading, .ant-spin');
+                    if (!loadingIndicator) {
+                        console.log(`✅ Options loaded: ${options.length} options available`);
+                        break;
+                    }
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (options.length === 0) {
+                console.log('❌ No options loaded after waiting, falling back to text-only fill');
+                return false;
+            }
+            
+            // Step 4: Find the matching option with enhanced matching logic
+            let targetOption = null;
+            
+            // Helper function to normalize text for comparison
+            const normalizeText = (text) => {
+                return text.toLowerCase()
+                    .replace(/[^\w\s]/g, '') // Remove punctuation
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .trim();
+            };
+            
+            const normalizedTarget = normalizeText(value);
+            console.log(`🎯 Looking for normalized target: "${normalizedTarget}"`);
+            console.log(`📋 Available options:`, Array.from(options).map(opt => opt.textContent?.trim()));
+            
+            for (const option of Array.from(options)) {
+                const optionText = option.textContent?.trim();
+                const normalizedOption = normalizeText(optionText);
+                console.log(`Checking option: "${optionText}" (normalized: "${normalizedOption}")`);
+                
+                // Exact match (case-insensitive)
+                if (normalizedOption === normalizedTarget) {
+                    targetOption = option;
+                    console.log(`✅ Found exact match: "${optionText}"`);
+                    break;
+                }
+            }
+            
+            if (!targetOption) {
+                console.log(`❌ No exact match found, trying smart matching...`);
+                
+                // Smart matching strategies
+                for (const option of Array.from(options)) {
+                    const optionText = option.textContent?.trim();
+                    const normalizedOption = normalizeText(optionText);
+                    
+                    // Strategy 1: Contains match (either direction)
+                    if (normalizedOption.includes(normalizedTarget) || normalizedTarget.includes(normalizedOption)) {
+                        targetOption = option;
+                        console.log(`✅ Found contains match: "${optionText}"`);
+                        break;
+                    }
+                    
+                                // Strategy 2: Word-by-word matching
+            const targetWords = normalizedTarget.split(' ').filter(word => word.length > 2);
+            const optionWords = normalizedOption.split(' ').filter(word => word.length > 2);
+            const matchingWords = targetWords.filter(word => optionWords.includes(word));
+            
+            if (matchingWords.length >= Math.min(2, targetWords.length)) {
+                targetOption = option;
+                console.log(`✅ Found word match: "${optionText}" (matching words: ${matchingWords.join(', ')})`);
+                break;
+            }
+            
+            // Strategy 3: Partial word matching (for cases like "I lease a space" vs "lease")
+            for (const targetWord of targetWords) {
+                for (const optionWord of optionWords) {
+                    if (targetWord.includes(optionWord) || optionWord.includes(targetWord)) {
+                        targetOption = option;
+                        console.log(`✅ Found partial word match: "${optionText}" (target: "${targetWord}", option: "${optionWord}")`);
+                        break;
+                    }
+                }
+                if (targetOption) break;
+            }
+                }
+            }
+            
+            if (!targetOption) {
+                console.log(`❌ No smart match found, trying first available option...`);
+                // As a last resort, try the first option
+                if (options.length > 0) {
+                    targetOption = Array.from(options)[0];
+                    console.log(`⚠️ Using first available option: "${targetOption.textContent?.trim()}"`);
+                }
+            }
+            
+            if (!targetOption) {
+                console.log(`❌ No matching option found for "${value}"`);
+                return false;
+            }
+            
+            // Step 5: Click the option to select it
+            console.log(`🖱️ Clicking option: "${targetOption.textContent?.trim()}"`);
+            targetOption.click();
+            
+            // Wait for selection to take effect
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Step 6: Close dropdown by clicking outside or pressing Escape
+            const escapeEvent = new KeyboardEvent('keydown', {
+                key: 'Escape',
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(escapeEvent);
+            
+            console.log(`✅ Successfully selected dropdown option: "${value}"`);
+            return true;
+            
+        } catch (error) {
+            console.log('❌ Error selecting dropdown option:', error);
+            console.log('❌ Error stack:', error.stack);
+            return false;
+        }
+    };
+    
+    // Enhanced protection function with better targeting
+    const protectValue = () => {
+        // Only log occasionally to reduce noise
+        const shouldLog = Math.random() < 0.01; // Only log 1% of the time to reduce console noise
+        if (shouldLog) {
+            console.log('🛡️ Protecting Ant Design select value...');
+        }
+        
+        // Find all possible elements that could hold the value
+        const selector = antSelectElement.querySelector('.ant-select-selector') || antSelectElement;
+        const hiddenInput = antSelectElement.querySelector('input[type="hidden"]') || 
+                           antSelectElement.querySelector('.ant-select-selection-item') ||
+                           antSelectElement.querySelector('.ant-select-selection-search-input');
+        const displayElement = antSelectElement.querySelector('.ant-select-selection-item') ||
+                              antSelectElement.querySelector('.ant-select-selection-placeholder');
+        const searchInput = antSelectElement.querySelector('.ant-select-selection-search-input');
+        
+        // Set value on all possible elements
+        if (hiddenInput) {
+            hiddenInput.value = value;
+            hiddenInput.setAttribute('value', value);
+        }
+        
+        if (displayElement) {
+            displayElement.textContent = value;
+            displayElement.setAttribute('title', value);
+        }
+        
+        if (searchInput) {
+            searchInput.value = value;
+            searchInput.setAttribute('value', value);
+        }
+        
+        // Also set on the main element itself
+        antSelectElement.setAttribute('data-value', value);
+        antSelectElement.setAttribute('value', value);
+        
+        // Trigger React events with more sophisticated approach
+        try {
+            // Create more realistic events
+            const changeEvent = new Event('change', { bubbles: true, cancelable: true });
+            const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+            const blurEvent = new Event('blur', { bubbles: true, cancelable: true });
+            
+            // Dispatch events on multiple elements for better coverage
+            antSelectElement.dispatchEvent(changeEvent);
+            antSelectElement.dispatchEvent(inputEvent);
+            antSelectElement.dispatchEvent(blurEvent);
+            
+            if (hiddenInput) {
+                hiddenInput.dispatchEvent(changeEvent);
+                hiddenInput.dispatchEvent(inputEvent);
+            }
+            
+            if (searchInput) {
+                searchInput.dispatchEvent(changeEvent);
+                searchInput.dispatchEvent(inputEvent);
+            }
+        } catch (e) {
+            if (shouldLog) {
+                console.log('Error triggering events:', e);
+            }
+        }
+    };
+    
+    // Set up MutationObserver to detect when React clears values (only when dropdown is closed)
+    const observer = new MutationObserver((mutations) => {
+        try {
+            // Only restore if dropdown is not open
+            const dropdown = document.querySelector('.ant-select-dropdown');
+            if (dropdown && dropdown.style.display !== 'none') {
+                return; // Don't interfere when dropdown is open
+            }
+            
+            let shouldRestore = false;
+            
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' || mutation.type === 'attributes') {
+                    // Check if the value was cleared
+                    const displayElement = antSelectElement.querySelector('.ant-select-selection-item');
+                    const hiddenInput = antSelectElement.querySelector('input[type="hidden"]');
+                    const searchInput = antSelectElement.querySelector('.ant-select-selection-search-input');
+                    
+                    const currentValue = displayElement?.textContent || hiddenInput?.value || searchInput?.value;
+                    
+                    if (!currentValue || currentValue.trim() === '') {
+                        shouldRestore = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (shouldRestore) {
+                console.log('🔄 React cleared value, restoring...');
+                protectValue();
+            }
+        } catch (error) {
+            console.log('Error in MutationObserver callback:', error);
+        }
+    });
+    
+    // Observe the entire Ant Design select for changes
+    observer.observe(antSelectElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['value', 'textContent', 'title']
+    });
+    
+    // Store observer reference for cleanup
+    const observerId = `observer_${++observerIdCounter}_${Date.now()}`;
+    observerMap.set(observerId, observer);
+    antSelectElement.dataset.intellifillObserverId = observerId;
+    
+    // Set up continuous protection with longer intervals to reduce noise
+    const protectionInterval = setInterval(protectValue, 5000); // Increased to 5 seconds to be less aggressive
+    antSelectElement.dataset.intellifillProtectionInterval = protectionInterval;
+    
+    // Add click protection using the new handler management (only for value restoration, not dropdown interference)
+    const clickHandler = (e) => {
+        // Only restore if this is a click outside of dropdown interaction
+        const dropdown = document.querySelector('.ant-select-dropdown');
+        if (!dropdown || dropdown.style.display === 'none') {
+            console.log('Ant Design select clicked, restoring value...');
+            protectValue();
+        }
+    };
+    
+    antSelectElement.addEventListener('click', clickHandler);
+    const handlerId = storeHandler(antSelectElement, clickHandler, 'click');
+    antSelectElement.dataset.intellifillClickHandlerId = handlerId;
+    
+    // Try to properly select the dropdown option first
+    selectDropdownOption().then(success => {
+        if (!success) {
+            console.log('🔄 Dropdown selection failed, falling back to text-only fill');
+            protectValue();
+        }
+    });
+    
+    console.log(`✅ Set up comprehensive protection for Ant Design select with value: "${value}"`);
+    return true;
+}
+
+// Function to restore Ant Design select value
+function restoreAntDesignSelectValue(antSelectElement, targetValue) {
+    console.log(`🛡️ Restoring Ant Design select value to: "${targetValue}"`);
+    
+    // Find the hidden input
+    const hiddenInput = antSelectElement.querySelector('input[type="hidden"]') || 
+                       antSelectElement.querySelector('.ant-select-selection-item') ||
+                       antSelectElement.querySelector('.ant-select-selection-search-input');
+    
+    // Find the display element
+    const displayElement = antSelectElement.querySelector('.ant-select-selection-item') ||
+                          antSelectElement.querySelector('.ant-select-selection-placeholder');
+    
+    // Restore the value
+    if (hiddenInput) {
+        hiddenInput.value = targetValue;
+        hiddenInput.setAttribute('value', targetValue);
+    }
+    
+    // Restore the display text
+    if (displayElement) {
+        displayElement.textContent = targetValue;
+        displayElement.setAttribute('title', targetValue);
+    }
+    
+    // Trigger events to notify Ant Design
+    setTimeout(() => {
+        try {
+            antSelectElement.dispatchEvent(new Event('change', { bubbles: true }));
+            antSelectElement.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (e) {
+            console.log('Error triggering events during Ant Design restoration:', e);
+        }
+    }, 10);
+    
+    console.log(`✅ Restored Ant Design select value: "${targetValue}"`);
+}
+
+// Initialize the extension
+initialize();
+
